@@ -19,7 +19,7 @@ export function activate(context: ExtensionContext) {
   };
   const clientOptions: LanguageClientOptions = { documentSelector: [{ scheme: "file", language: "scala" }] };
 
-  client = new LanguageClient("languageServerExample", "Language Server Example", serverOptions, clientOptions);
+  client = new LanguageClient("basicScalaLSP", "Basic Scala LSP", serverOptions, clientOptions);
   // Starting the client also launches the server
   client.start();
 }

@@ -9,6 +9,7 @@
     "type": "git",
     "url": "https://github.com/mrdziuban/vscode-basic-scala"
   },
+  "publisher": "mrdziuban",
   "engines": {
     "vscode": "^1.23.0"
   },
@@ -23,6 +24,7 @@
     "watch:client": "tsc -w -p ./client/tsconfig.json",
     "watch:server": "tsc -w -p ./server/tsconfig.json",
     "compile": "yarn compile:client && yarn compile:server",
+    "package": "vsce package --yarn",
     "postinstall": "cd client && yarn && cd ../server && yarn && cd .."
   },
   "devDependencies": {
