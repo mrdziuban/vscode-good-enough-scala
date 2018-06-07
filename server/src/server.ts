@@ -11,6 +11,7 @@ import {
   SymbolKind,
   WorkspaceSymbolParams
 } from "vscode-languageserver";
+import {spawnSync} from "child_process";
 import * as fs from "fs";
 import FuzzySearch = require("fuzzy-search");
 import * as path from "path";
@@ -54,13 +55,24 @@ interface ScalaFile {
   relativePath: string;
 };
 
+function getGitScalaFiles(dir: string): string[] {
+  return spawnSync("git", ["--git-dir", path.join(dir, ".git"), "ls-files", "*.scala"])
+    .stdout
+    .toString()
+    .trim()
+    .split("\n")
+    .map((f: string) => `${dir}/${f}`);
+}
+
 function getScalaFiles(dir: string, files: string[] = []): string[] {
-  return files.concat(flatten(fs.readdirSync(dir).map((file: string) => {
-    const joined = path.resolve(path.join(dir, file));
-    return fs.statSync(joined).isDirectory()
-      ? getScalaFiles(joined, files)
-      : (/\.scala$/.test(joined) ? [joined] : []);
-  })));
+  return fs.existsSync(path.join(dir, ".git"))
+    ? getGitScalaFiles(dir)
+    : files.concat(flatten(fs.readdirSync(dir).map((file: string) => {
+      const joined = path.resolve(path.join(dir, file));
+      return fs.statSync(joined).isDirectory()
+        ? getScalaFiles(joined, files)
+        : (/\.scala$/.test(joined) ? [joined] : []);
+    })));
 }
 
 interface ScalaSymbol {
