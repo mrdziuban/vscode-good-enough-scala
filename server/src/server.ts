@@ -159,7 +159,7 @@ connection.onInitialized(update);
 function buildTerm(line: string, char: number): string {
   const append = (term: string, changeIdx: (i: number) => number, concat: (newChar: string, term: string) => string): string => {
     let idx = changeIdx(char);
-    while (termRx.test(line[idx])) {
+    while (line[idx] && termRx.test(line[idx])) {
       term = concat(line[idx], term);
       idx = changeIdx(idx);
     }
