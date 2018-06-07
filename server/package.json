@@ -1,12 +1,12 @@
 {
-  "name": "basic-scala-lsp-server",
+  "name": "good-enough-scala-lsp-server",
   "description": "LSP server for basic Scala definitions",
   "author": "Matt Dziuban <mrdziuban@gmail.com>",
   "license": "UNLICENSED",
   "private": true,
   "repository": {
     "type": "git",
-    "url": "https://github.com/mrdziuban/vscode-basic-scala"
+    "url": "https://github.com/mrdziuban/vscode-good-enough-scala"
   },
   "engines": {
     "node": "*"
