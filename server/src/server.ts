@@ -69,7 +69,7 @@ function getFilesCommand(cmd: string, args: string[]): string[] {
 
 function gitScalaFiles(dir: string): string[] {
   return getFilesCommand("git", ["--git-dir", path.join(dir, ".git"), "ls-files", "*.scala"])
-    .map((f: string) => `${dir}/${f}`);
+    .map((f: string) => path.join(dir, f));
 }
 
 function findCmdScalaFiles(dir: string): string[] {
@@ -191,7 +191,7 @@ function update(): void {
         }));
       return flatten(folders.map(([_, dir]: [WorkspaceFolder, string]): ScalaFile[] => {
         const files = getScalaFiles(dir);
-        return files.map((f: string) => ({ absolutePath: f, relativePath: f.replace(`${dir}/`, "") }));
+        return files.map((f: string) => ({ absolutePath: f, relativePath: f.replace(`${dir}${path.sep}`, "") }));
       }));
     })
     .then((files: ScalaFile[]) =>
