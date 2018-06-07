@@ -11,7 +11,7 @@ import {
   SymbolKind,
   WorkspaceSymbolParams
 } from "vscode-languageserver";
-import {spawnSync} from "child_process";
+import { spawnSync } from "child_process";
 import * as commandExists from "command-exists";
 import * as fs from "fs";
 import FuzzySearch = require("fuzzy-search");
@@ -64,20 +64,20 @@ function loggedGetFiles(getMethod: string, dir: string, getter: (dir: string) =>
 }
 
 function getFilesCommand(cmd: string, args: string[]): string[] {
-  return spawnSync(cmd, args).stdout.toString().trim().split("\n");
+  return spawnSync(cmd, args).stdout.toString().trim().split("\n").filter((f: string) => f !== "");
 }
 
 function gitScalaFiles(dir: string): string[] {
-  return getFilesCommand("git", ["--git-dir", path.join(dir, ".git"), "ls-files", "*.scala"])
+  return getFilesCommand("git", ["--git-dir", path.join(dir, ".git"), "ls-files", "*.scala", "*.sc"])
     .map((f: string) => path.join(dir, f));
 }
 
 function findCmdScalaFiles(dir: string): string[] {
-  return getFilesCommand("find", [dir, "-name", "*.scala"]);
+  return getFilesCommand("find", [dir, "-type", "f", "(", "-iname", "*.scala", "-o", "-iname", "*.sc", ")"]);
 }
 
 function dirCmdScalaFiles(dir: string): string[] {
-  return getFilesCommand("dir", [dir, "/s/b", "*.scala"]);
+  return getFilesCommand("dir", [dir, "/s/b", "*.scala", "*.sc"]);
 }
 
 function fsScalaFiles(dir: string, files: string[] = []): string[] {

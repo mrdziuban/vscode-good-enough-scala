@@ -14,7 +14,7 @@
     "vscode": "^1.23.0"
   },
   "activationEvents": [
-    "workspaceContains:**/*.scala"
+    "workspaceContains:**/*.{sc,scala}"
   ],
   "main": "./client/out/extension",
   "scripts": {
