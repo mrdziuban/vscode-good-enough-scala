@@ -56,9 +56,9 @@ interface ScalaFile {
   relativePath: string;
 };
 
-function loggedGetFiles(getMethod: string, dir: string, get: (dir: string) => string[]): string[] {
+function loggedGetFiles(getMethod: string, dir: string, getter: (dir: string) => string[]): string[] {
   connection.console.log(`Getting scala files with ${getMethod}`);
-  const res = get(dir);
+  const res = getter(dir);
   connection.console.log(`Found ${res.length} scala files to index`);
   return res;
 }
@@ -90,15 +90,15 @@ function fsScalaFiles(dir: string, files: string[] = []): string[] {
 }
 
 function getScalaFiles(dir: string): string[] {
-  if (fs.existsSync(path.join(dir, ".git"))) {
-    return loggedGetFiles("git", dir, gitScalaFiles);
-  } else if (commandExists.sync("find")) {
-    return loggedGetFiles("`find`", dir, findCmdScalaFiles);
-  } else if (commandExists.sync("dir")) {
-    return loggedGetFiles("`dir`", dir, dirCmdScalaFiles);
-  } else {
-    return loggedGetFiles("fs", dir, fsScalaFiles);
-  }
+  const [getMethod, getter] = ((): [string, (dir: string) => string[]] => {
+    switch(true) {
+      case fs.existsSync(path.join(dir, ".git")): return ["git", gitScalaFiles];
+      case commandExists.sync("find"):            return ["`find`", findCmdScalaFiles];
+      case commandExists.sync("dir"):             return ["`dir`", dirCmdScalaFiles];
+      default:                                    return ["fs", fsScalaFiles];
+    }
+  })();
+  return loggedGetFiles(getMethod, dir, getter);
 }
 
 interface ScalaSymbol {
