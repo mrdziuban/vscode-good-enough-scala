@@ -4,7 +4,7 @@
   "author": "Matt Dziuban <mrdziuban@gmail.com>",
   "license": "UNLICENSED",
   "private": true,
-  "version": "1.0.2",
+  "version": "1.0.3",
   "repository": {
     "type": "git",
     "url": "https://github.com/mrdziuban/vscode-basic-scala"
@@ -18,14 +18,15 @@
   ],
   "main": "./client/out/extension",
   "scripts": {
-    "vscode:prepublish": "cd client && yarn update-vscode && cd .. && yarn compile",
+    "clean": "(git ls-files -o -z | xargs -0 rm) && yarn",
+    "compile": "yarn compile:client && yarn compile:server",
     "compile:client": "tsc -p ./client/tsconfig.json",
     "compile:server": "tsc -p ./server/tsconfig.json",
-    "watch:client": "tsc -w -p ./client/tsconfig.json",
-    "watch:server": "tsc -w -p ./server/tsconfig.json",
-    "compile": "yarn compile:client && yarn compile:server",
     "package": "vsce package --yarn",
-    "postinstall": "cd client && yarn && cd ../server && yarn && cd .."
+    "postinstall": "cd client && yarn && cd ../server && yarn && cd ..",
+    "vscode:prepublish": "cd client && yarn update-vscode && cd .. && yarn compile",
+    "watch:client": "tsc -w -p ./client/tsconfig.json",
+    "watch:server": "tsc -w -p ./server/tsconfig.json"
   },
   "devDependencies": {
     "@types/node": "~10.3.1",
