@@ -1,19 +1,17 @@
 {
-  "name": "lsp-sample-server",
-  "description": "Example implementation of a language server in node.",
-  "version": "1.0.0",
-  "author": "Microsoft Corporation",
-  "license": "MIT",
+  "name": "basic-scala-lsp-server",
+  "description": "LSP server for basic Scala definitions",
+  "author": "Matt Dziuban <mrdziuban@gmail.com>",
+  "license": "UNLICENSED",
+  "private": true,
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/mrdziuban/vscode-basic-scala"
+  },
   "engines": {
     "node": "*"
   },
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/Microsoft/vscode-extension-samples"
-  },
   "dependencies": {
-    "vscode-languageserver": "^4.1.3"
-  },
-  "scripts": {
+    "vscode-languageserver": "~4.2.1"
   }
 }
