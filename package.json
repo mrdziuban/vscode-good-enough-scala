@@ -46,17 +46,18 @@
     }
   },
   "scripts": {
-    "vscode:prepublish": "cd client && npm run update-vscode && cd .. && npm run compile",
+    "vscode:prepublish": "cd client && yarn update-vscode && cd .. && yarn compile",
     "compile:client": "tsc -p ./client/tsconfig.json",
     "compile:server": "tsc -p ./server/tsconfig.json",
     "watch:client": "tsc -w -p ./client/tsconfig.json",
     "watch:server": "tsc -w -p ./server/tsconfig.json",
-    "compile": "npm run compile:client && npm run compile:server",
-    "postinstall": "cd client && npm install && cd ../server && npm install && cd .."
+    "compile": "yarn compile:client && yarn compile:server",
+    "postinstall": "cd client && yarn && cd ../server && yarn && cd .."
   },
   "devDependencies": {
-    "@types/mocha": "^5.2.0",
-    "@types/node": "^8.0.0",
-    "typescript": "2.8.3"
+    "@types/mocha": "~5.2.1",
+    "@types/node": "~10.3.1",
+    "typescript": "~2.9.1",
+    "vsce": "~1.42.0"
   }
 }
