@@ -56,6 +56,13 @@ interface ScalaFile {
   relativePath: string;
 };
 
+function loggedGetFiles(getMethod: string, dir: string, get: (dir: string) => string[]): string[] {
+  connection.console.log(`Getting scala files with ${getMethod}`);
+  const res = get(dir);
+  connection.console.log(`Found ${res.length} scala files to index`);
+  return res;
+}
+
 function getFilesCommand(cmd: string, args: string[]): string[] {
   return spawnSync(cmd, args).stdout.toString().trim().split("\n");
 }
@@ -84,13 +91,13 @@ function fsScalaFiles(dir: string, files: string[] = []): string[] {
 
 function getScalaFiles(dir: string): string[] {
   if (fs.existsSync(path.join(dir, ".git"))) {
-    return gitScalaFiles(dir);
+    return loggedGetFiles("git", dir, gitScalaFiles);
   } else if (commandExists.sync("find")) {
-    return findCmdScalaFiles(dir);
+    return loggedGetFiles("`find`", dir, findCmdScalaFiles);
   } else if (commandExists.sync("dir")) {
-    return dirCmdScalaFiles(dir);
+    return loggedGetFiles("`dir`", dir, dirCmdScalaFiles);
   } else {
-    return fsScalaFiles(dir);
+    return loggedGetFiles("fs", dir, fsScalaFiles);
   }
 }
 
