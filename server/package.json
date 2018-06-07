@@ -12,6 +12,7 @@
     "node": "*"
   },
   "dependencies": {
+    "command-exists": "~1.2.6",
     "fuzzy-search": "~2.1.0",
     "vscode-languageserver": "~4.2.1"
   }
