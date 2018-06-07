@@ -42,8 +42,5 @@ export function activate(context: ExtensionContext) {
 }
 
 export function deactivate(): Thenable<void> {
-  if (!client) {
-    return Promise.resolve(undefined);
-  }
-  return client.stop();
+  return !!client ? client.stop() : Promise.resolve(undefined);
 }
