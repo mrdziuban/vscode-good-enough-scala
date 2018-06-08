@@ -3,7 +3,7 @@
   "description": "LSP extension to provide support for basic Scala definitions",
   "author": "Matt Dziuban <mrdziuban@gmail.com>",
   "license": "MIT",
-  "version": "1.0.3",
+  "version": "1.0.0",
   "repository": {
     "type": "git",
     "url": "https://github.com/mrdziuban/vscode-good-enough-scala"
