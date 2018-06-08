@@ -193,7 +193,7 @@ function update(): void {
     .then((files: ScalaFile[]) =>
       Promise.all(files.map((file: ScalaFile) =>
         new Promise((resolve: (syms: ScalaSymbol[]) => void) => resolve(getScalaSymbols(file))))))
-    // This is the wrong type but the compiler is complaining. See cast below.
+    // This should just be `ScalaSymbol[][]` but the compiler is complaining. See cast below.
     .then((syms: Promise<ScalaSymbol[][]>) => {
       symbols = R.flatten<ScalaSymbol>(<any>syms as ScalaSymbol[][]).reduce((acc: Symbols, sym: ScalaSymbol) => {
         acc[sym.name] = (acc[sym.name] || []).concat([sym]);
