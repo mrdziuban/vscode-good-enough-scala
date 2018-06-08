@@ -24,6 +24,19 @@
   "activationEvents": [
     "workspaceContains:**/*.{sc,scala}"
   ],
+  "contributes": {
+    "configuration": {
+      "type": "object",
+      "title": "\"Good Enough\" Scala Language Server configuration",
+      "properties": {
+        "goodEnoughScala.hoverEnabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Controls whether matching symbols should show on hover"
+        }
+      }
+    }
+  },
   "main": "./client/out/extension",
   "scripts": {
     "clean": "(git ls-files -o -z | xargs -0 rm) && yarn",
