@@ -39,6 +39,8 @@ function flatten<A>(arr: A[][]): A[] { return [].concat.apply([], arr); }
 
 function now(): number { return +(new Date()); }
 
+function regexQuote(s: string): string { return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"); }
+
 function sortBy<A, B>(fn: (a: A) => B, arr: A[]): A[] {
   const sorters = {
     number: (x: number, y: number): number => x - y,
@@ -175,7 +177,10 @@ function update(): void {
         .filter((f: WorkspaceFolder) => /^file:\/\//i.test(f.uri))
         .map((f: WorkspaceFolder) => fileUriToPath(f.uri))
         .map((dir: string): ScalaFile[] =>
-          getScalaFiles(dir).map((f: string) => ({ absolutePath: f, relativePath: f.replace(`${dir}${path.sep}`, "") })))))
+          getScalaFiles(dir).map((f: string) => ({
+            absolutePath: f,
+            relativePath: f.replace(new RegExp(`^${regexQuote(dir)}(${regexQuote(path.sep)}|\/)?`), "")
+          })))))
     .then((files: ScalaFile[]) =>
       Promise.all(files.map((file: ScalaFile) =>
         new Promise((resolve: (syms: ScalaSymbol[]) => void) => resolve(getScalaSymbols(file))))))
@@ -186,7 +191,6 @@ function update(): void {
         return acc;
       }, {});
       fuzzySearch = new FuzzySearch(flatten(Object.values(symbols)), ["_name"], { caseSensitive: false, sort: true });
-      // updateIndexedFiles();
       connection.console.log(`Finished indexing ${Object.keys(symbols).length} scala symbols in ${now() - start}ms`);
     });
 }
