@@ -17,6 +17,7 @@ import fileUriToPath = require("file-uri-to-path");
 import * as fs from "fs";
 import FuzzySearch = require("fuzzy-search");
 import * as path from "path";
+import {URL} from "url";
 
 const connection = createConnection(ProposedFeatures.all);
 const documents = new TextDocuments();
@@ -109,8 +110,12 @@ interface ScalaSymbol {
   location: { line: number; character: number; };
 }
 
+function symToUri(sym: ScalaSymbol): string {
+  return (new URL(`file://${sym.file.absolutePath}`)).href;
+}
+
 function symToLoc(sym: ScalaSymbol): Location {
-  return Location.create(`file://${sym.file.absolutePath}`, { start: sym.location, end: sym.location });
+  return Location.create(symToUri(sym), { start: sym.location, end: sym.location });
 }
 
 interface Symbols { [sym: string]: ScalaSymbol[]; }
@@ -224,7 +229,7 @@ connection.onHover((tdp: TextDocumentPositionParams): Hover | undefined => {
         kind: MarkupKind.Markdown,
         value: sortBy((sym: ScalaSymbol) => sym.file.absolutePath, symbols[term]).map((sym: ScalaSymbol) => {
           const line = `${sym.location.line + 1},${sym.location.character}`;
-          return `- [${sym.file.relativePath}:${line}](file://${sym.file.absolutePath}#L${line})`;
+          return `- [${sym.file.relativePath}:${line}](${symToUri(sym)}#L${line})`;
         }).join("\n")
       }
     }
