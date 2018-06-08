@@ -1,6 +1,12 @@
 {
   "name": "good-enough-scala-lsp",
-  "description": "LSP extension to provide support for basic Scala definitions",
+  "displayName": "\"Good Enough\" Scala Language Server",
+  "description": "Language server to provide support for basic Scala definitions",
+  "icon": "image/icon.png",
+  "galleryBanner": {
+    "color": "#333333",
+    "theme": "dark"
+  },
   "author": "Matt Dziuban <mrdziuban@gmail.com>",
   "license": "MIT",
   "version": "1.0.0",
@@ -8,7 +14,10 @@
     "type": "git",
     "url": "https://github.com/mrdziuban/vscode-good-enough-scala"
   },
+  "bugs": "https://github.com/mrdziuban/vscode-good-enough-scala/issues",
   "publisher": "mrdziuban",
+  "categories": ["Programming Languages"],
+  "keywords": ["scala", "language-server", "definitions"],
   "engines": {
     "vscode": "^1.23.0"
   },
