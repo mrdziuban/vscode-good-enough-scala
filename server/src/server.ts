@@ -45,7 +45,7 @@ interface Settings { hoverEnabled: boolean; }
 const defaultSettings: Settings = { hoverEnabled: true };
 let settings: Settings = defaultSettings;
 
-function updateSettings(params?: DidChangeConfigurationParams): void {
+const updateSettings = (params?: DidChangeConfigurationParams) => {
   if (hasWorkspaceConfig) {
     connection.workspace.getConfiguration("goodEnoughScala").then((s: Settings) => {
       connection.console.log(`Scala settings changed: ${JSON.stringify(s)}`);
@@ -55,63 +55,58 @@ function updateSettings(params?: DidChangeConfigurationParams): void {
     connection.console.log(`Scala settings changed: ${JSON.stringify(params.settings.goodEnoughScala)}`);
     settings = params.settings.goodEnoughScala || defaultSettings;
   }
-}
+};
 
 connection.onDidChangeConfiguration(updateSettings);
 
 const symPrefix = "__SCALA_SYMBOL__";
-function symName(name: string): string { return `${symPrefix}${name}`; }
+const symName = (name: string) => `${symPrefix}${name}`;
 
-function now(): number { return +(new Date()); }
+const now = () => +(new Date());
 
-function regexQuote(s: string): string { return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"); }
+const regexQuote = R.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
-function withOpt<A, O>(fn: (a: A) => O): (a?: A) => O | undefined { return (a?: A) => a ? fn(a) : undefined }
+const withOpt = <A, O>(fn: (a: A) => O) => (a?: A): O | undefined => a ? fn(a) : undefined;
 
 interface ScalaFile {
   absolutePath: string;
   relativePath: string;
 }
 
-function loggedGetFiles(getMethod: string, dir: string, getter: (dir: string) => string[]): string[] {
+const loggedGetFiles = (getMethod: string, dir: string, getter: (dir: string) => string[]) => {
   connection.console.log(`Getting scala files with ${getMethod}`);
   const res = getter(dir);
   connection.console.log(`Found ${res.length} scala files to index`);
   return res;
-}
+};
 
-function getFilesCommand(cmd: string, args: string[]): string[] {
-  return spawnSync(cmd, args).stdout.toString().trim().split("\n").filter((f: string) => f !== "");
-}
+const getFilesCommand = (cmd: string, args: string[]): string[] =>
+  spawnSync(cmd, args).stdout.toString().trim().split("\n").filter((f: string) => f !== "");
 
-function gitScalaFiles(dir: string): string[] {
-  return getFilesCommand("git", ["--git-dir", path.join(dir, ".git"), "ls-files", "*.scala", "*.sc"])
-    .map((f: string) => path.join(dir, f));
-}
+const gitScalaFiles = (dir: string) =>
+  getFilesCommand("git", ["--git-dir", path.join(dir, ".git"), "ls-files", "*.scala", "*.sc"]).map((f: string) => path.join(dir, f));
 
-function findCmdScalaFiles(dir: string): string[] {
-  return getFilesCommand("find", [dir, "-type", "f", "(", "-iname", "*.scala", "-o", "-iname", "*.sc", ")"]);
-}
+const findCmdScalaFiles = (dir: string): string[] =>
+  getFilesCommand("find", [dir, "-type", "f", "(", "-iname", "*.scala", "-o", "-iname", "*.sc", ")"]);
 
-function fsScalaFiles(dir: string, files: string[] = []): string[] {
-  return files.concat(R.flatten<string>(fs.readdirSync(dir).map((file: string) => {
+const fsScalaFiles = (dir: string, files: string[] = []): string[] =>
+  files.concat(R.flatten<string>(fs.readdirSync(dir).map((file: string) => {
     const joined = path.resolve(path.join(dir, file));
     return fs.statSync(joined).isDirectory()
       ? fsScalaFiles(joined, files)
       : (/\.scala$/.test(joined) ? [joined] : []);
   })));
-}
 
-function getScalaFiles(dir: string): string[] {
-  const [getMethod, getter] = ((): [string, (dir: string) => string[]] => {
-    switch (true) {
-      case fs.existsSync(path.join(dir, ".git")): return ["git", gitScalaFiles];
-      case commandExists.sync("find"):            return ["`find`", findCmdScalaFiles];
-      default:                                    return ["fs", fsScalaFiles];
-    }
-  })();
-  return loggedGetFiles(getMethod, dir, getter);
-}
+interface Getter { method: string; getter: (dir: string) => string[]; }
+const getScalaFiles = (dir: string): string[] =>
+  R.ifElse(
+    R.isNil,
+    () => [],
+    ({ method, getter }: Getter) => loggedGetFiles(method, dir, getter))(R.find(R.pipe(R.isNil, R.not))([
+      fs.existsSync(path.join(dir, ".git")) ? { method: "git", getter: gitScalaFiles } : undefined,
+      commandExists.sync("find") ? { method: "`find`", getter: findCmdScalaFiles } : undefined,
+      { method: "fs", getter: fsScalaFiles }
+    ]));
 
 interface ScalaSymbol {
   name: string;
@@ -121,13 +116,8 @@ interface ScalaSymbol {
   location: { line: number; character: number; };
 }
 
-function symToUri(sym: ScalaSymbol): string {
-  return (new URL(`file://${sym.file.absolutePath}`)).href;
-}
-
-function symToLoc(sym: ScalaSymbol): Location {
-  return Location.create(symToUri(sym), { start: sym.location, end: sym.location });
-}
+const symToUri = (sym: ScalaSymbol) => (new URL(`file://${sym.file.absolutePath}`)).href;
+const symToLoc = (sym: ScalaSymbol) => Location.create(symToUri(sym), { start: sym.location, end: sym.location });
 
 interface Symbols { [sym: string]: ScalaSymbol[]; }
 let symbols: Symbols = {};
@@ -135,34 +125,30 @@ let fuzzySearch: FuzzySearch<ScalaSymbol> | undefined;
 
 type SymbolExtractor = (f: ScalaFile, c: string) => ScalaSymbol[];
 
-function extractMatches(rx: RegExp, symbolType: string, kind: SymbolKind, file: ScalaFile): (line: string, lineNum: number) => ScalaSymbol[] {
-  return (line: string, lineNum: number) => {
-    const offset = symbolType.length + 2;
-    const retVal = [];
-    let matches = rx.exec(line);
-    while (!!matches) {
-      retVal.push({
-        name: symName(matches[1]),
-        _name: matches[1],
-        kind,
-        file,
-        location: { line: lineNum, character: matches.index + offset }
-      });
-      matches = rx.exec(line);
-    }
-    return retVal;
-  };
-}
+const extractMatches = (rx: RegExp, symbolType: string, kind: SymbolKind, file: ScalaFile) => (line: string, lineNum: number): ScalaSymbol[] => {
+  const offset = symbolType.length + 2;
+  const retVal = [];
+  let matches = rx.exec(line);
+  while (!!matches) {
+    retVal.push({
+      name: symName(matches[1]),
+      _name: matches[1],
+      kind,
+      file,
+      location: { line: lineNum, character: matches.index + offset }
+    });
+    matches = rx.exec(line);
+  }
+  return retVal;
+};
 
 const alphaRx = /[a-zA-Z]/;
 const termRx = new RegExp(`[${alphaRx.source.slice(1, -1)}0-9_]`);
 
-function defaultExtractor(symbolType: string, kind: SymbolKind): (f: ScalaFile, c: string) => ScalaSymbol[] {
-  return (file: ScalaFile, contents: string) => {
-    const rx = new RegExp(`${symbolType} (${alphaRx.source}${termRx.source}+)`, "g");
-    return R.flatten<ScalaSymbol>(contents.split("\n").map(extractMatches(rx, symbolType, kind, file)));
-  };
-}
+const defaultExtractor = (symType: string, kind: SymbolKind) => (file: ScalaFile, contents: string): ScalaSymbol[] => {
+  const rx = new RegExp(`${symType} (${alphaRx.source}${termRx.source}+)`, "g");
+  return R.flatten<ScalaSymbol>(contents.split("\n").map(extractMatches(rx, symType, kind, file)));
+};
 
 const symbolExtractors: SymbolExtractor[] = [
   defaultExtractor("class", SymbolKind.Class),
@@ -173,12 +159,12 @@ const symbolExtractors: SymbolExtractor[] = [
   defaultExtractor("type", SymbolKind.TypeParameter)
 ];
 
-function getScalaSymbols(file: ScalaFile): ScalaSymbol[] {
+const getScalaSymbols = (file: ScalaFile): ScalaSymbol[] => {
   const contents = fs.readFileSync(file.absolutePath).toString();
   return R.flatten<ScalaSymbol>(symbolExtractors.map((ex: SymbolExtractor) => ex(file, contents)));
-}
+};
 
-function update(): void {
+const update = () => {
   const start = now();
   connection.workspace.getWorkspaceFolders()
     .then((fldrs: WorkspaceFolder[] | null) =>
@@ -202,7 +188,7 @@ function update(): void {
       fuzzySearch = new FuzzySearch(R.flatten<ScalaSymbol>(Object.values(symbols)), ["_name"], { caseSensitive: false, sort: true });
       connection.console.log(`Finished indexing ${Object.keys(symbols).length} scala symbols in ${now() - start}ms`);
     });
-}
+};
 
 connection.onInitialized((() => {
   if (hasWorkspaceConfig) { connection.client.register(DidChangeConfigurationNotification.type); }
@@ -213,49 +199,43 @@ connection.onInitialized((() => {
 interface CharRange { start: number; end: number; }
 interface Term { term: string; range: CharRange; }
 
-function buildTerm(char: number): (line: string) => Term {
-  return (line: string) => {
-    const append = (changeIdx: (i: number) => number, concat: (newChar: string, term: string) => string): (acc: string) => [string, number] => {
-      return (acc: string) => {
-        let pos = char;
-        let idx = changeIdx(char);
-        while (line[idx] && termRx.test(line[idx])) {
-          acc = concat(line[idx], acc);
-          pos = idx;
-          idx = changeIdx(idx);
-        }
-        return [acc, pos];
-      }
-    };
-
-    return R.pipe(
-      append(R.dec, R.concat),
-      ([term, start]: [string, number]) => [start, append(R.inc, R.flip<string, string, string>(R.concat))(term)],
-      ([start, [term, end]]: [number, [string, number]]) => ({ term: symName(term), range: { start, end } }))(line[char]);
+const buildTerm = (charPos: number) => (line: string): Term => {
+  const append = (updIdx: (i: number) => number, concat: (char: string, term: string) => string) => (acc: string): [string, number] => {
+    let pos = charPos;
+    let idx = updIdx(charPos);
+    while (line[idx] && termRx.test(line[idx])) {
+      acc = concat(line[idx], acc);
+      pos = idx;
+      idx = updIdx(idx);
+    }
+    return [acc, pos];
   };
-}
 
-function getTerm(tdp: TextDocumentPositionParams): Term | undefined {
-  return R.ifElse(R.isNil, () => undefined, R.pipe(
+  return R.pipe(
+    append(R.dec, R.concat),
+    ([term, start]: [string, number]) => [start, append(R.inc, R.flip<string, string, string>(R.concat))(term)],
+    ([start, [term, end]]: [number, [string, number]]) => ({ term: symName(term), range: { start, end } }))(line[charPos]);
+};
+
+const getTerm = (tdp: TextDocumentPositionParams): Term | undefined =>
+  R.ifElse(R.isNil, () => undefined, R.pipe(
     fs.readFileSync,
     R.toString,
     R.split("\n"),
     R.path([tdp.position.line]),
     buildTerm(tdp.position.character)))(fileUriToPath(tdp.textDocument.uri));
-}
 
-function symbolsForPos(tdp: TextDocumentPositionParams): ScalaSymbol[] | undefined {
-  const file = fileUriToPath(tdp.textDocument.uri);
-  return withOpt((term: Term) => R.reject((sym: ScalaSymbol) =>
-    sym.file.absolutePath === file && sym.location.line === tdp.position.line &&
+const symbolsForPos = (tdp: TextDocumentPositionParams): ScalaSymbol[] | undefined =>
+  withOpt((term: Term) => R.reject((sym: ScalaSymbol) =>
+    sym.file.absolutePath === fileUriToPath(tdp.textDocument.uri) && sym.location.line === tdp.position.line &&
       sym.location.character >= term.range.start && sym.location.character <= term.range.end)(symbols[term.term] || []))(getTerm(tdp));
-}
 
 connection.onDefinition((tdp: TextDocumentPositionParams): Location[] | undefined =>
   withOpt((syms: ScalaSymbol[]) => syms.map(symToLoc))(symbolsForPos(tdp)));
 
 connection.onHover((tdp: TextDocumentPositionParams): Hover | undefined =>
-  R.ifElse(R.identity,
+  R.ifElse(
+    R.identity,
     () => withOpt((syms: ScalaSymbol[]) => ({
       contents: {
         kind: MarkupKind.Markdown,
