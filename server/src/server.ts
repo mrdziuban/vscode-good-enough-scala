@@ -37,10 +37,10 @@ connection.onInitialize((params: InitializeParams) => {
       workspaceSymbolProvider: true,
       textDocumentSync: documents.syncKind
     }
-  }
+  };
 });
 
-interface Settings { hoverEnabled: boolean }
+interface Settings { hoverEnabled: boolean; }
 const defaultSettings: Settings = { hoverEnabled: true };
 let settings: Settings = defaultSettings;
 
@@ -48,7 +48,7 @@ function updateSettings(params?: DidChangeConfigurationParams): void {
   if (hasWorkspaceConfig) {
     connection.workspace.getConfiguration("goodEnoughScala").then((s: Settings) => {
       connection.console.log(`Scala settings changed: ${JSON.stringify(s)}`);
-      settings = s
+      settings = s;
     });
   } else if (params && params.settings) {
     connection.console.log(`Scala settings changed: ${JSON.stringify(params.settings.goodEnoughScala)}`);
