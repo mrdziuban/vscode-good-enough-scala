@@ -6,6 +6,10 @@ command-exists@~1.2.6:
   version "1.2.6"
   resolved "https://registry.yarnpkg.com/command-exists/-/command-exists-1.2.6.tgz#577f8e5feb0cb0f159cd557a51a9be1bdd76e09e"
 
+file-uri-to-path@~1.0.0:
+  version "1.0.0"
+  resolved "https://registry.yarnpkg.com/file-uri-to-path/-/file-uri-to-path-1.0.0.tgz#553a7b8446ff6f684359c445f1e37a05dacc33dd"
+
 fuzzy-search@~2.1.0:
   version "2.1.0"
   resolved "https://registry.yarnpkg.com/fuzzy-search/-/fuzzy-search-2.1.0.tgz#925382ee321ee3094fdcb76865de2b6243456e14"
