@@ -2,8 +2,7 @@
   "name": "good-enough-scala-lsp-server",
   "description": "LSP server for basic Scala definitions",
   "author": "Matt Dziuban <mrdziuban@gmail.com>",
-  "license": "UNLICENSED",
-  "private": true,
+  "license": "MIT",
   "repository": {
     "type": "git",
     "url": "https://github.com/mrdziuban/vscode-good-enough-scala"
