@@ -14,6 +14,7 @@ import {
   WorkspaceFolder,
   WorkspaceSymbolParams
 } from "vscode-languageserver";
+import Analytics from "./analytics";
 import { spawnSync } from "child_process";
 import * as commandExists from "command-exists";
 import fileUriToPath = require("file-uri-to-path");
@@ -22,6 +23,7 @@ import FuzzySearch = require("fuzzy-search");
 import * as path from "path";
 import R = require("rambda");
 import {URL} from "url";
+import {now, withOpt} from "./util";
 
 const connection = createConnection(ProposedFeatures.all);
 const documents = new TextDocuments();
@@ -62,11 +64,7 @@ connection.onDidChangeConfiguration(updateSettings);
 const symPrefix = "__SCALA_SYMBOL__";
 const symName = (name: string) => `${symPrefix}${name}`;
 
-const now = () => +(new Date());
-
 const regexQuote = R.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-
-const withOpt = <A, O>(fn: (a: A) => O) => (a?: A): O | undefined => a ? fn(a) : undefined;
 
 interface ScalaFile {
   absolutePath: string;
@@ -164,7 +162,7 @@ const getScalaSymbols = (file: ScalaFile): ScalaSymbol[] => {
   return R.flatten<ScalaSymbol>(symbolExtractors.map((ex: SymbolExtractor) => ex(file, contents)));
 };
 
-const update = () => {
+const update = () => Analytics.timed<void>("action", "update")(() => {
   const start = now();
   connection.workspace.getWorkspaceFolders()
     .then((fldrs: WorkspaceFolder[] | null) =>
@@ -188,12 +186,13 @@ const update = () => {
       fuzzySearch = new FuzzySearch(R.flatten<ScalaSymbol>(Object.values(symbols)), ["_name"], { caseSensitive: false, sort: true });
       connection.console.log(`Finished indexing ${Object.keys(symbols).length} scala symbols in ${now() - start}ms`);
     });
-};
+});
 
 connection.onInitialized((() => {
   if (hasWorkspaceConfig) { connection.client.register(DidChangeConfigurationNotification.type); }
   updateSettings();
   update();
+  connection.sendRequest<string>("goodEnoughScalaMachineId").then(Analytics.init);
 }));
 
 interface CharRange { start: number; end: number; }
@@ -231,12 +230,13 @@ const symbolsForPos = (tdp: TextDocumentPositionParams): ScalaSymbol[] | undefin
       sym.location.character >= term.range.start && sym.location.character <= term.range.end)(symbols[term.term] || []))(getTerm(tdp));
 
 connection.onDefinition((tdp: TextDocumentPositionParams): Location[] | undefined =>
-  withOpt((syms: ScalaSymbol[]) => syms.map(symToLoc))(symbolsForPos(tdp)));
+  Analytics.timed<Location[] | undefined>("lookup", "definition")(() =>
+    withOpt((syms: ScalaSymbol[]) => syms.map(symToLoc))(symbolsForPos(tdp))));
 
 connection.onHover((tdp: TextDocumentPositionParams): Hover | undefined =>
   R.ifElse(
     R.identity,
-    () => withOpt((syms: ScalaSymbol[]) => ({
+    () => Analytics.timed<Hover | undefined>("lookup", "hover")(() => withOpt((syms: ScalaSymbol[]) => ({
       contents: {
         kind: MarkupKind.Markdown,
         value: R.sortBy(R.path(["file", "absolutePath"]))(syms).map((sym: ScalaSymbol) => {
@@ -244,15 +244,16 @@ connection.onHover((tdp: TextDocumentPositionParams): Hover | undefined =>
           return `[${sym.file.relativePath}:${line}](${symToUri(sym)}#L${line})  `;
         }).join("\n")
       }
-    }))(symbolsForPos(tdp)),
+    }))(symbolsForPos(tdp))),
     () => undefined)(settings.hoverEnabled));
 
 connection.onWorkspaceSymbol((params: WorkspaceSymbolParams): SymbolInformation[] | undefined =>
-  withOpt((s: FuzzySearch<ScalaSymbol>) => s.search(params.query.toLowerCase()).map((sym: ScalaSymbol) => ({
-    name: sym.name.replace(new RegExp(`^${symPrefix}`), ""),
-    kind: sym.kind,
-    location: symToLoc(sym)
-  })))(fuzzySearch));
+  Analytics.timed<SymbolInformation[] | undefined>("lookup", "workspaceSymbol")(() =>
+    withOpt((s: FuzzySearch<ScalaSymbol>) => s.search(params.query.toLowerCase()).map((sym: ScalaSymbol) => ({
+      name: sym.name.replace(new RegExp(`^${symPrefix}`), ""),
+      kind: sym.kind,
+      location: symToLoc(sym)
+    })))(fuzzySearch)));
 
 // TODO - can a single file be updated in the index on save?
 connection.onDidSaveTextDocument(update);
