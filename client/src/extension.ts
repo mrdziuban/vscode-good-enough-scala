@@ -5,7 +5,7 @@ import * as url from "url";
 
 let client: LanguageClient;
 
-export const active = (ctx: ExtensionContext) => {
+export const activate = (ctx: ExtensionContext) => {
   const serverModule = ctx.asAbsolutePath(path.join("server", "out", "server.js"));
   const baseOpts = { module: serverModule, transport: TransportKind.ipc };
   client = new LanguageClient(
