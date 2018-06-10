@@ -30,9 +30,10 @@ The extension is available on the [marketplace](#). If you want to install it fr
 
 The following configuration options are available:
 
-|Key|Type|Default|
-|:---:|:---:|:---:|
-|`"goodEnoughScala.hoverEnabled"`|`boolean`|`true`|
+|Key|Type|Description|Default|
+|:---:|:---:|:---:|:---:|
+|`"goodEnoughScala.analyticsEnabled"`|`boolean`|Controls whether anonymous analytics data can be collected|`true`|
+|`"goodEnoughScala.hoverEnabled"`|`boolean`|Controls whether matching symbols should show on hover|`true`|
 
 ## Building
 

@@ -29,6 +29,11 @@
       "type": "object",
       "title": "\"Good Enough\" Scala Language Server configuration",
       "properties": {
+        "goodEnoughScala.analyticsEnabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Controls whether anonymous analytics data can be collected"
+        },
         "goodEnoughScala.hoverEnabled": {
           "type": "boolean",
           "default": true,

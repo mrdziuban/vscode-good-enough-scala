@@ -1,8 +1,11 @@
 import Kefir = require("kefir");
+import Settings from "./settings";
 import ua = require("universal-analytics");
 import {now} from "./util";
 
 const gaId = "UA-43398941-7";
+
+const whenEnabled = <A>(fn: () => A): A | undefined => Settings.get().analyticsEnabled ? fn() : undefined;
 
 const clientStream = Kefir.pool<ua.Visitor, {}>();
 
@@ -14,14 +17,14 @@ interface GAEvent {
 }
 const eventStream = Kefir.pool<GAEvent, {}>();
 Kefir.combine<any, {}, void>([clientStream, eventStream], (client: ua.Visitor, event: GAEvent) =>
-  (event.label && event.value
+  whenEnabled(() => (event.label && event.value
     ? client.event(event.category, event.action, event.label, event.value)
-    : client.event(event.category, event.action)).send()).observe();
+    : client.event(event.category, event.action)).send())).observe();
 
 interface GATiming { category: string; action: string; duration: number; }
 const timingStream = Kefir.pool<GATiming, {}>();
 Kefir.combine<any, {}, void>([clientStream, timingStream], (client: ua.Visitor, timing: GATiming) =>
-  client.timing(timing.category, timing.action, timing.duration).send()).observe();
+  whenEnabled(() => client.timing(timing.category, timing.action, timing.duration).send())).observe();
 
 const Analytics = {
   init: (machineId: string): void => { clientStream.plug(Kefir.constant(ua(gaId, machineId))); },
