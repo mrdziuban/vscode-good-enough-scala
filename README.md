@@ -4,6 +4,8 @@ This is a "good enough" language server extension for VS Code that aims to simpl
 applications by providing basic definition support. It was inspired by Sublime Text's `show_definitions` functionality
 added in [Build 3116](https://www.sublimetext.com/3dev).
 
+![](https://user-images.githubusercontent.com/4718399/41206683-d8e3d960-6cd5-11e8-9400-bda911651cb7.gif)
+
 ## What does "good enough" mean?
 
 This means that the extension provides:
