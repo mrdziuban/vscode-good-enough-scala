@@ -25,8 +25,8 @@ The extension *does not* provide:
 
 ## Installation
 
-The extension is available on the [marketplace](#). If you want to install it from source, follow the steps below in
-[Building](#building)
+The extension is available on the [marketplace](https://marketplace.visualstudio.com/items?itemName=mrdziuban.good-enough-scala-lsp).
+If you want to install it from source, follow the steps below in [Building](#building).
 
 ## Configuration
 
