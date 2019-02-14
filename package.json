@@ -1,5 +1,5 @@
 {
-  "name": "good-enough-scala-lsp",
+  "name": "good-enough-scala-lsp-local",
   "displayName": "\"Good Enough\" Scala Language Server",
   "description": "Language server to provide support for basic Scala definitions",
   "icon": "image/icon.png",
@@ -58,9 +58,9 @@
     "watch:server": "tsc -w -p ./server/tsconfig.json"
   },
   "devDependencies": {
-    "@types/node": "~10.3.1",
-    "tslint": "~5.10.0",
-    "typescript": "~2.9.1",
-    "vsce": "~1.42.0"
+    "@types/node": "~11.9.3",
+    "tslint": "~5.12.1",
+    "typescript": "~3.3.3",
+    "vsce": "~1.57.0"
   }
 }
