@@ -1,9 +1,7 @@
-import * as path from "path";
-import { createConnection, DidChangeConfigurationNotification, DidChangeTextDocumentParams, DidChangeWatchedFilesParams, FileChangeType, FileEvent, Hover, InitializeParams, Location, MarkupKind, ProposedFeatures, SymbolInformation, SymbolKind, TextDocumentContentChangeEvent, TextDocumentPositionParams, TextDocuments, TextDocumentSyncKind, WorkspaceFolder, WorkspaceSymbolParams } from "vscode-languageserver";
+import { createConnection, DidChangeConfigurationNotification, DidChangeTextDocumentParams, DidChangeWatchedFilesParams, FileChangeType, FileEvent, Hover, InitializeParams, Location, MarkupKind, ProposedFeatures, SymbolInformation, SymbolKind, TextDocumentContentChangeEvent, TextDocumentPositionParams, TextDocuments, TextDocumentSyncKind, WorkspaceSymbolParams } from "vscode-languageserver";
 import Analytics from "./analytics";
 import Settings from "./settings";
 import { applyTo, exhaustive, now, pipe, prop, withOpt } from "./util";
-import fileUriToPath = require("file-uri-to-path");
 import FuzzySearch = require("fuzzy-search");
 import R = require("rambda");
 
@@ -28,11 +26,9 @@ connection.onDidChangeConfiguration(Settings.update(connection));
 const symPrefix = "__SCALA_SYMBOL__";
 const symName = (name: string) => `${symPrefix}${name}`;
 
-const regexQuote = R.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-
 interface ScalaFile {
   uri: string;
-  path: string;
+  relativePath: string;
 }
 
 interface ScalaSymbol {
@@ -50,7 +46,8 @@ interface Symbols { [sym: string]: ScalaSymbol[]; }
 let symbols: Symbols = {};
 let fuzzySearch: FuzzySearch<ScalaSymbol> | undefined;
 
-interface FileContents { [uri: string]: string; }
+interface File { uri: string; relativePath: string; contents: string; }
+interface FileContents { [uri: string]: File }
 let fileContents: FileContents = {};
 
 type SymbolExtractor = (f: ScalaFile, c: string) => ScalaSymbol[];
@@ -89,39 +86,27 @@ const symbolExtractors: SymbolExtractor[] = [
   defaultExtractor("type", SymbolKind.TypeParameter)
 ];
 
-const getFilePath = (uri: string): PromiseLike<string> => {
-  const absPath = fileUriToPath(uri);
-  return connection.workspace.getWorkspaceFolders()
-    .then(R.ifElse(R.isNil, () => [], R.identity))
-    .then((folders: WorkspaceFolder[]) => {
-      const dir = folders.map(pipe(prop("uri"), fileUriToPath)).find((f: string) => (new RegExp(`^${regexQuote(f)}`).test(absPath)));
-      return dir ? absPath.replace(new RegExp(`^${regexQuote(dir)}(${regexQuote(path.sep)}|\/)?`), "") : absPath;
-    });
-};
-
-
-const indexFiles = (files: FileContents): PromiseLike<ScalaSymbol[]> => {
+const indexFiles = (files: FileContents): PromiseLike<ScalaSymbol[]> => new Promise((resolve: (s: ScalaSymbol[]) => void) => {
   const start = now();
   const shouldRemove: { [f: string]: true } = Object.keys(files).reduce((acc: { [f: string]: true }, f: string) => Object.assign({}, acc, { [f]: true }), {});
-  const symsPromise = Promise.all(Object.entries(files).map(([uri, contents]: [string, string]) => getFilePath(uri)
-  .then((p: string) => R.flatten(symbolExtractors.map((ex: SymbolExtractor) => ex({ uri, path: p }, contents)))))).then(R.flatten);
-  return symsPromise.then((syms: ScalaSymbol[]) => {
-    fileContents = Object.assign({}, fileContents, files);
-    symbols = syms.reduce(
-      (acc: Symbols, sym: ScalaSymbol) => Object.assign({}, acc, { [sym.name]: (acc[sym.name] || []).concat([sym]) }),
-      Object.entries(symbols).reduce((acc: Symbols, [name, xs]: [string, ScalaSymbol[]]) =>
-      Object.assign({}, acc, { [name]: xs.filter((s: ScalaSymbol) => !!!shouldRemove[s.file.uri]) }), {}));
-      fuzzySearch = new FuzzySearch(R.flatten<ScalaSymbol>(Object.values(symbols)), ["_name"], { caseSensitive: false, sort: true });
-      connection.console.log(`Indexed ${Object.keys(symbols).length} scala symbols in ${now() - start}ms`);
-      return syms;
-    });
-  };
+  const syms = R.flatten(Object.values(files).map((file: File) => {
+    const scalaFile = { uri: file.uri, relativePath: file.relativePath };
+    return R.flatten(symbolExtractors.map((ex: SymbolExtractor) => ex(scalaFile, file.contents)));
+  }));
+  fileContents = Object.assign({}, fileContents, files);
+  symbols = syms.reduce(
+    (acc: Symbols, sym: ScalaSymbol) => Object.assign({}, acc, { [sym.name]: (acc[sym.name] || []).concat([sym]) }),
+    Object.entries(symbols).reduce((acc: Symbols, [name, xs]: [string, ScalaSymbol[]]) =>
+    Object.assign({}, acc, { [name]: xs.filter((s: ScalaSymbol) => !!!shouldRemove[s.file.uri]) }), {}));
+  fuzzySearch = new FuzzySearch(R.flatten<ScalaSymbol>(Object.values(symbols)), ["_name"], { caseSensitive: false, sort: true });
+  connection.console.log(`Indexed ${Object.keys(symbols).length} scala symbols in ${now() - start}ms`);
+  resolve(syms);
+});
 
 let indexTick: NodeJS.Timer | undefined;
 let filesToIndex: FileContents = {};
 
 const debouncedIndexFiles = (action: string) => (files: FileContents) => {
-  connection.console.log(`Debouncing action ${action}`);
   if (indexTick) { clearTimeout(indexTick); }
   filesToIndex = Object.assign({}, filesToIndex, files);
   indexTick = setTimeout(() => Analytics.timedAsync("action", action)(() => indexFiles(filesToIndex).then(() => filesToIndex = {})), 150);
@@ -161,8 +146,10 @@ const buildTerm = (charPos: number) => (line: string): Term => {
 };
 
 const getTerm = (tdp: TextDocumentPositionParams): PromiseLike<Term> =>
-  (fileContents[tdp.textDocument.uri] ? Promise.resolve(fileContents[tdp.textDocument.uri]) : getFiles([tdp.textDocument.uri])
-    .then(prop(tdp.textDocument.uri))).then(pipe(R.split("\n"), prop(tdp.position.line), buildTerm(tdp.position.character)));
+  (fileContents[tdp.textDocument.uri]
+    ? Promise.resolve(fileContents[tdp.textDocument.uri])
+    : getFiles([tdp.textDocument.uri]).then(prop(tdp.textDocument.uri)))
+        .then(pipe(prop("contents"), R.split("\n"), prop(tdp.position.line), buildTerm(tdp.position.character)));
 
 const symbolsForPos = (tdp: TextDocumentPositionParams): PromiseLike<ScalaSymbol[]> =>
   getTerm(tdp).then((term: Term) => R.reject((sym: ScalaSymbol) =>
@@ -184,7 +171,7 @@ connection.onHover((tdp: TextDocumentPositionParams): PromiseLike<Hover> | undef
           .sort((s1: ScalaSymbol, s2: ScalaSymbol) => applyTo((c1: -1 | 0 | 1) =>
             c1 === 0 ? applyTo((c2: -1 | 0 | 1) => c2 === 0 ? comp(s1.location.character, s2.location.character) : c2)(
               comp(s1.location.line, s2.location.line)) : c1)(comp(symToUri(s1), symToUri(s2))))
-          .map((sym: ScalaSymbol) => applyTo((line: string) => `[${sym.file.path}:${line}](${symToUri(sym)}#L${line})  `)(
+          .map((sym: ScalaSymbol) => applyTo((line: string) => `[${sym.file.relativePath}:${line}](${symToUri(sym)}#L${line})  `)(
             `${sym.location.line + 1},${sym.location.character}`))
           .join("\n")
       }
@@ -208,8 +195,11 @@ const addJustChanged = (uri: string) => {
 
 connection.onDidChangeTextDocument((params: DidChangeTextDocumentParams) => {
   addJustChanged(params.textDocument.uri);
-  debouncedIndexFiles("indexChanged")(params.contentChanges.reduce((acc: FileContents, event: TextDocumentContentChangeEvent) =>
-    Object.assign({}, acc, { [params.textDocument.uri]: event.text }), {}));
+  params.contentChanges.reduce(
+    (acc: PromiseLike<FileContents>, event: TextDocumentContentChangeEvent) => acc.then((fs: FileContents) =>
+      (fileContents[params.textDocument.uri] ? Promise.resolve(fileContents[params.textDocument.uri].relativePath) : connection.sendRequest<string>("goodEnoughScalaGetRelPath"))
+        .then((relativePath: string) => Object.assign({}, fs, { [params.textDocument.uri]: { uri: params.textDocument.uri, relativePath, contents: event.text } }))),
+    Promise.resolve({})).then(debouncedIndexFiles("indexChanged"));
 });
 
 connection.onDidChangeWatchedFiles((params: DidChangeWatchedFilesParams) => {
