@@ -32,7 +32,7 @@ export const activate = (ctx: ExtensionContext) => {
     { run: baseOpts, debug: Object.assign(baseOpts, { options: { execArgv: ["--nolazy", "--inspect=6009"] } }) },
     {
       documentSelector: ["scala"],
-      synchronize: { fileEvents: workspace.createFileSystemWatcher("**/*.scala") },
+      synchronize: { fileEvents: workspace.createFileSystemWatcher("**/*.{sbt,scala,sc}") },
       uriConverters: { code2Protocol, protocol2Code }
     });
 
