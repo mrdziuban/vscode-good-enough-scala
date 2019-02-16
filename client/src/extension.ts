@@ -37,9 +37,9 @@ export const activate = (ctx: ExtensionContext) => {
     });
 
   client.onReady().then(() => {
-    client.onRequest("goodEnoughScalaGetAllFiles", () => workspace.findFiles("**/*.scala").then(readFiles));
+    client.onRequest("goodEnoughScalaGetAllFiles", () => workspace.findFiles("**/*.{sbt,scala,sc}").then(readFiles));
     client.onRequest("goodEnoughScalaGetFiles", ({ uris }: { uris: string[]; }) => readFiles(uris.map(protocol2Code)));
-    client.onRequest("goodEnoughScalaGetRelPath", ({ uri }: { uri: string; }) => relPath(uri));
+    client.onRequest("goodEnoughScalaGetRelPath", relPath);
     client.onRequest("goodEnoughScalaMachineId", () => env.machineId);
   });
 

@@ -196,7 +196,7 @@ connection.onDidChangeTextDocument((params: DidChangeTextDocumentParams) => {
   addJustChanged(params.textDocument.uri);
   params.contentChanges.reduce(
     (acc: PromiseLike<FileContents>, event: TextDocumentContentChangeEvent) => acc.then((fs: FileContents) =>
-      (fileContents[params.textDocument.uri] ? Promise.resolve(fileContents[params.textDocument.uri].relativePath) : connection.sendRequest<string>("goodEnoughScalaGetRelPath"))
+      (fileContents[params.textDocument.uri] ? Promise.resolve(fileContents[params.textDocument.uri].relativePath) : connection.sendRequest<string>("goodEnoughScalaGetRelPath", params.textDocument.uri))
         .then((relativePath: string) => Object.assign({}, fs, { [params.textDocument.uri]: { uri: params.textDocument.uri, relativePath, contents: event.text } }))),
     Promise.resolve({})).then(debouncedIndexFiles("indexChanged"));
 });
