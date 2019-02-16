@@ -11,7 +11,7 @@ const code2Protocol = (uri: Uri) => url.format(url.parse(uri.toString(true)));
 const protocol2Code = Uri.parse;
 
 interface File { uri: string; relativePath: string; contents: string; }
-interface Files { [uri: string]: File }
+interface Files { [uri: string]: File; }
 
 const relPath = (uri: Uri | string) => workspace.asRelativePath(uri);
 

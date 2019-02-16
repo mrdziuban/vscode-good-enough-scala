@@ -47,7 +47,7 @@ let symbols: Symbols = {};
 let fuzzySearch: FuzzySearch<ScalaSymbol> | undefined;
 
 interface File { uri: string; relativePath: string; contents: string; }
-interface FileContents { [uri: string]: File }
+interface FileContents { [uri: string]: File; }
 let fileContents: FileContents = {};
 
 type SymbolExtractor = (f: ScalaFile, c: string) => ScalaSymbol[];
@@ -110,7 +110,7 @@ const debouncedIndexFiles = (action: string) => (files: FileContents) => {
   if (indexTick) { clearTimeout(indexTick); }
   filesToIndex = Object.assign({}, filesToIndex, files);
   indexTick = setTimeout(() => Analytics.timedAsync("action", action)(() => indexFiles(filesToIndex).then(() => filesToIndex = {})), 150);
-}
+};
 
 const indexAllFiles = () => Analytics.timedAsync("action", "indexAll")(() =>
   connection.sendRequest<FileContents>("goodEnoughScalaGetAllFiles").then(indexFiles));
@@ -186,7 +186,7 @@ connection.onWorkspaceSymbol((params: WorkspaceSymbolParams): SymbolInformation[
       location: symToLoc(sym)
     })))(fuzzySearch)));
 
-let justChanged: { [uri: string]: boolean } = {};
+const justChanged: { [uri: string]: boolean } = {};
 
 const addJustChanged = (uri: string) => {
   justChanged[uri] = true;
