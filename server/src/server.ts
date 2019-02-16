@@ -1,5 +1,5 @@
 import * as path from "path";
-import { createConnection, DidChangeConfigurationNotification, DidChangeTextDocumentParams, DidChangeWatchedFilesParams, DidSaveTextDocumentParams, FileChangeType, FileEvent, Hover, InitializeParams, Location, MarkupKind, ProposedFeatures, SymbolInformation, SymbolKind, TextDocumentContentChangeEvent, TextDocumentPositionParams, TextDocuments, TextDocumentSyncKind, WorkspaceFolder, WorkspaceSymbolParams } from "vscode-languageserver";
+import { createConnection, DidChangeConfigurationNotification, DidChangeTextDocumentParams, DidChangeWatchedFilesParams, FileChangeType, FileEvent, Hover, InitializeParams, Location, MarkupKind, ProposedFeatures, SymbolInformation, SymbolKind, TextDocumentContentChangeEvent, TextDocumentPositionParams, TextDocuments, TextDocumentSyncKind, WorkspaceFolder, WorkspaceSymbolParams } from "vscode-languageserver";
 import Analytics from "./analytics";
 import Settings from "./settings";
 import { applyTo, exhaustive, now, pipe, prop, withOpt } from "./util";
@@ -99,33 +99,38 @@ const getFilePath = (uri: string): PromiseLike<string> => {
     });
 };
 
+
 const indexFiles = (files: FileContents): PromiseLike<ScalaSymbol[]> => {
   const start = now();
-  const shouldRemove: { [f: string]: true } = Object.keys(files).reduce((acc: { [f: string]: true }, f: string) => Object.assign(acc, { [f]: true }), {});
+  const shouldRemove: { [f: string]: true } = Object.keys(files).reduce((acc: { [f: string]: true }, f: string) => Object.assign({}, acc, { [f]: true }), {});
   const symsPromise = Promise.all(Object.entries(files).map(([uri, contents]: [string, string]) => getFilePath(uri)
-    .then((p: string) => R.flatten(symbolExtractors.map((ex: SymbolExtractor) => ex({ uri, path: p }, contents)))))).then(R.flatten);
+  .then((p: string) => R.flatten(symbolExtractors.map((ex: SymbolExtractor) => ex({ uri, path: p }, contents)))))).then(R.flatten);
   return symsPromise.then((syms: ScalaSymbol[]) => {
     fileContents = Object.assign({}, fileContents, files);
     symbols = syms.reduce(
       (acc: Symbols, sym: ScalaSymbol) => Object.assign({}, acc, { [sym.name]: (acc[sym.name] || []).concat([sym]) }),
       Object.entries(symbols).reduce((acc: Symbols, [name, xs]: [string, ScalaSymbol[]]) =>
-        Object.assign({}, acc, { [name]: xs.filter((s: ScalaSymbol) => !!!shouldRemove[s.file.uri]) }), {}));
-    fuzzySearch = new FuzzySearch(R.flatten<ScalaSymbol>(Object.values(symbols)), ["_name"], { caseSensitive: false, sort: true });
-    connection.console.log(`Indexed ${Object.keys(symbols).length} scala symbols in ${now() - start}ms`);
-    return syms;
-  });
-};
+      Object.assign({}, acc, { [name]: xs.filter((s: ScalaSymbol) => !!!shouldRemove[s.file.uri]) }), {}));
+      fuzzySearch = new FuzzySearch(R.flatten<ScalaSymbol>(Object.values(symbols)), ["_name"], { caseSensitive: false, sort: true });
+      connection.console.log(`Indexed ${Object.keys(symbols).length} scala symbols in ${now() - start}ms`);
+      return syms;
+    });
+  };
+
+let indexTick: NodeJS.Timer | undefined;
+let filesToIndex: FileContents = {};
+
+const debouncedIndexFiles = (action: string) => (files: FileContents) => {
+  connection.console.log(`Debouncing action ${action}`);
+  if (indexTick) { clearTimeout(indexTick); }
+  filesToIndex = Object.assign({}, filesToIndex, files);
+  indexTick = setTimeout(() => Analytics.timedAsync("action", action)(() => indexFiles(filesToIndex).then(() => filesToIndex = {})), 150);
+}
 
 const indexAllFiles = () => Analytics.timedAsync("action", "indexAll")(() =>
   connection.sendRequest<FileContents>("goodEnoughScalaGetAllFiles").then(indexFiles));
 
 const getFiles = (uris: string[]): PromiseLike<FileContents> => connection.sendRequest<FileContents>("goodEnoughScalaGetFiles", { uris });
-
-const indexChangedFiles = (toIndex: string[], toDelete: string[]) => Analytics.timedAsync("action", "indexChanged")(() => {
-  const delFiles = toDelete.reduce((acc: { [uri: string]: "" }, u: string) => Object.assign({}, acc, { [u]: "" }), {});
-  if (toIndex.length === 0) { return indexFiles(delFiles); }
-  return getFiles(toIndex).then((files: FileContents) => indexFiles(Object.assign({}, files, delFiles)));
-});
 
 connection.onInitialized((() => {
   if (Settings.hasWorkspaceConfig()) { connection.client.register(DidChangeConfigurationNotification.type); }
@@ -194,23 +199,34 @@ connection.onWorkspaceSymbol((params: WorkspaceSymbolParams): SymbolInformation[
       location: symToLoc(sym)
     })))(fuzzySearch)));
 
-connection.onDidSaveTextDocument((params: DidSaveTextDocumentParams) =>
-  (params.text ? Promise.resolve(params.text) : getFiles([params.textDocument.uri]).then(indexFiles)));
+let justChanged: { [uri: string]: boolean } = {};
 
-connection.onDidChangeTextDocument((params: DidChangeTextDocumentParams) =>
-  indexFiles(params.contentChanges.reduce((acc: FileContents, event: TextDocumentContentChangeEvent) =>
-    Object.assign({}, acc, { [params.textDocument.uri]: event.text }), {})));
+const addJustChanged = (uri: string) => {
+  justChanged[uri] = true;
+  setTimeout(() => justChanged[uri] = false, 500);
+};
+
+connection.onDidChangeTextDocument((params: DidChangeTextDocumentParams) => {
+  addJustChanged(params.textDocument.uri);
+  debouncedIndexFiles("indexChanged")(params.contentChanges.reduce((acc: FileContents, event: TextDocumentContentChangeEvent) =>
+    Object.assign({}, acc, { [params.textDocument.uri]: event.text }), {}));
+});
 
 connection.onDidChangeWatchedFiles((params: DidChangeWatchedFilesParams) => {
   const [toIndex, toDelete] = params.changes.reduce(([i, d]: [string[], string[]], event: FileEvent): [string[], string[]] => {
     switch (event.type) {
-      case FileChangeType.Changed:
+      case FileChangeType.Changed: return justChanged[event.uri] ? [i, d] : [i.concat([event.uri]), d];
       case FileChangeType.Created: return [i.concat([event.uri]), d];
       case FileChangeType.Deleted: return [i, d.concat([event.uri])];
     }
     return exhaustive(event.type);
   }, [[], []]);
-  indexChangedFiles(toIndex, toDelete);
+
+  if (toIndex.length === 0 && toDelete.length === 0) { return; }
+
+  const delFiles = toDelete.reduce((acc: { [uri: string]: "" }, u: string) => Object.assign({}, acc, { [u]: "" }), {});
+  if (toIndex.length === 0) { debouncedIndexFiles("indexChangedWatched")(delFiles); }
+  getFiles(toIndex).then((files: FileContents) => debouncedIndexFiles("indexChangedWatched")(Object.assign({}, files, delFiles)));
 });
 
 connection.listen();
