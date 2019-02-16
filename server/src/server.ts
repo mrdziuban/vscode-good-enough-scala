@@ -1,7 +1,7 @@
 import { createConnection, DidChangeConfigurationNotification, DidChangeTextDocumentParams, DidChangeWatchedFilesParams, FileChangeType, FileEvent, Hover, InitializeParams, Location, MarkupKind, ProposedFeatures, SymbolInformation, SymbolKind, TextDocumentContentChangeEvent, TextDocumentPositionParams, TextDocuments, TextDocumentSyncKind, WorkspaceSymbolParams } from "vscode-languageserver";
 import Analytics from "./analytics";
 import Settings from "./settings";
-import { applyTo, exhaustive, now, pipe, prop, withOpt } from "./util";
+import { applyTo, exhaustive, now, path, pipe, prop, withOpt } from "./util";
 import FuzzySearch = require("fuzzy-search");
 import R = require("rambda");
 
@@ -160,6 +160,8 @@ connection.onDefinition((tdp: TextDocumentPositionParams): PromiseLike<Location[
   Analytics.timedAsync("lookup", "definition")(() => symbolsForPos(tdp).then((syms: ScalaSymbol[]) => syms.map(symToLoc))));
 
 const comp = (i1: string | number, i2: string | number) => i1 < i2 ? -1 : (i1 === i2 ? 0 : 1);
+const compAll = <A>(...[f, fs]: [(a: A) => string | number, ...((a: A) => string | number)[]]) => (a1: A, a2: A): -1 | 0 | 1 =>
+  [f].concat(fs).reduce((acc: -1 | 0 | 1, fn: (a: A) => string | number) => acc === 0 ? comp(fn(a1), fn(a2)) : acc, comp(f(a1), f(a2)))
 
 connection.onHover((tdp: TextDocumentPositionParams): PromiseLike<Hover> | undefined =>
   R.ifElse(
@@ -167,10 +169,7 @@ connection.onHover((tdp: TextDocumentPositionParams): PromiseLike<Hover> | undef
     () => Analytics.timedAsync("lookup", "hover")(() => symbolsForPos(tdp).then((syms: ScalaSymbol[]) => ({
       contents: {
         kind: MarkupKind.Markdown,
-        value: syms
-          .sort((s1: ScalaSymbol, s2: ScalaSymbol) => applyTo((c1: -1 | 0 | 1) =>
-            c1 === 0 ? applyTo((c2: -1 | 0 | 1) => c2 === 0 ? comp(s1.location.character, s2.location.character) : c2)(
-              comp(s1.location.line, s2.location.line)) : c1)(comp(symToUri(s1), symToUri(s2))))
+        value: syms.sort(compAll(symToUri, path("location", "character"), path("location", "line")))
           .map((sym: ScalaSymbol) => applyTo((line: string) => `[${sym.file.relativePath}:${line}](${symToUri(sym)}#L${line})  `)(
             `${sym.location.line + 1},${sym.location.character}`))
           .join("\n")
