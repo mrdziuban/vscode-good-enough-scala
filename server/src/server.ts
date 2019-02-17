@@ -33,7 +33,7 @@ interface ScalaFile {
 
 interface ScalaSymbol {
   name: string;
-  _name: string;
+  rawName: string;
   kind: SymbolKind;
   file: ScalaFile;
   location: { line: number; character: number; };
@@ -50,16 +50,24 @@ interface File { uri: string; relativePath: string; contents: string; }
 interface FileContents { [uri: string]: File; }
 let fileContents: FileContents = {};
 
+const getFiles = (uris: string[]): PromiseLike<FileContents> => connection.sendRequest<FileContents>("goodEnoughScalaGetFiles", { uris });
+
+const getFileContents = (uri: string): PromiseLike<string> =>
+  fileContents[uri] ? Promise.resolve(fileContents[uri].contents) : getFiles([uri]).then(path(uri, "contents"));
+
+const getRelPath = (uri: string): PromiseLike<string> =>
+  (fileContents[uri] ? Promise.resolve(fileContents[uri].relativePath) : connection.sendRequest("goodEnoughScalaGetRelPath", uri));
+
 type SymbolExtractor = (f: ScalaFile, c: string) => ScalaSymbol[];
 
 const extractMatches = (rx: RegExp, symbolType: string, kind: SymbolKind, file: ScalaFile) => (line: string, lineNum: number): ScalaSymbol[] => {
   const offset = symbolType.length + 2;
-  const retVal = [];
+  const retVal: ScalaSymbol[] = [];
   let matches = rx.exec(line);
   while (!!matches) {
     retVal.push({
       name: symName(matches[1]),
-      _name: matches[1],
+      rawName: matches[1],
       kind,
       file,
       location: { line: lineNum, character: matches.index + offset }
@@ -98,7 +106,7 @@ const indexFiles = (files: FileContents): PromiseLike<ScalaSymbol[]> => new Prom
     (acc: Symbols, sym: ScalaSymbol) => Object.assign({}, acc, { [sym.name]: (acc[sym.name] || []).concat([sym]) }),
     Object.entries(symbols).reduce((acc: Symbols, [name, xs]: [string, ScalaSymbol[]]) =>
     Object.assign({}, acc, { [name]: xs.filter((s: ScalaSymbol) => !!!shouldRemove[s.file.uri]) }), {}));
-  fuzzySearch = new FuzzySearch(R.flatten<ScalaSymbol>(Object.values(symbols)), ["_name"], { caseSensitive: false, sort: true });
+  fuzzySearch = new FuzzySearch(R.flatten<ScalaSymbol>(Object.values(symbols)), ["rawName"], { caseSensitive: false, sort: true });
   connection.console.log(`Indexed ${Object.keys(symbols).length} scala symbols in ${now() - start}ms`);
   resolve(syms);
 });
@@ -114,8 +122,6 @@ const debouncedIndexFiles = (action: string) => (files: FileContents) => {
 
 const indexAllFiles = () => Analytics.timedAsync("action", "indexAll")(() =>
   connection.sendRequest<FileContents>("goodEnoughScalaGetAllFiles").then(indexFiles));
-
-const getFiles = (uris: string[]): PromiseLike<FileContents> => connection.sendRequest<FileContents>("goodEnoughScalaGetFiles", { uris });
 
 connection.onInitialized((() => {
   if (Settings.hasWorkspaceConfig()) { connection.client.register(DidChangeConfigurationNotification.type); }
@@ -146,10 +152,7 @@ const buildTerm = (charPos: number) => (line: string): Term => {
 };
 
 const getTerm = (tdp: TextDocumentPositionParams): PromiseLike<Term> =>
-  (fileContents[tdp.textDocument.uri]
-    ? Promise.resolve(fileContents[tdp.textDocument.uri])
-    : getFiles([tdp.textDocument.uri]).then(prop(tdp.textDocument.uri)))
-        .then(pipe(prop("contents"), R.split("\n"), prop(tdp.position.line), buildTerm(tdp.position.character)));
+  getFileContents(tdp.textDocument.uri).then(pipe(R.split("\n"), prop(tdp.position.line), buildTerm(tdp.position.character)));
 
 const symbolsForPos = (tdp: TextDocumentPositionParams): PromiseLike<ScalaSymbol[]> =>
   getTerm(tdp).then((term: Term) => R.reject((sym: ScalaSymbol) =>
@@ -195,9 +198,9 @@ const addJustChanged = (uri: string) => {
 connection.onDidChangeTextDocument((params: DidChangeTextDocumentParams) => {
   addJustChanged(params.textDocument.uri);
   params.contentChanges.reduce(
-    (acc: PromiseLike<FileContents>, event: TextDocumentContentChangeEvent) => acc.then((fs: FileContents) =>
-      (fileContents[params.textDocument.uri] ? Promise.resolve(fileContents[params.textDocument.uri].relativePath) : connection.sendRequest<string>("goodEnoughScalaGetRelPath", params.textDocument.uri))
-        .then((relativePath: string) => Object.assign({}, fs, { [params.textDocument.uri]: { uri: params.textDocument.uri, relativePath, contents: event.text } }))),
+    (acc: PromiseLike<FileContents>, event: TextDocumentContentChangeEvent) =>
+      acc.then((fs: FileContents) => getRelPath(params.textDocument.uri).then((relativePath: string) =>
+        Object.assign({}, fs, { [params.textDocument.uri]: { uri: params.textDocument.uri, relativePath, contents: event.text } }))),
     Promise.resolve({})).then(debouncedIndexFiles("indexChanged"));
 });
 
