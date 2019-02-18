@@ -26,7 +26,7 @@ const timingStream = Kefir.pool<GATiming, {}>();
 Kefir.combine<any, {}, void>([clientStream, timingStream], (client: ua.Visitor, timing: GATiming) =>
   whenEnabled(() => client.timing(timing.category, timing.action, timing.duration).send())).observe();
 
-const Analytics = { // tslint:disable-line variable-name
+export const Analytics = { // tslint:disable-line variable-name
   init: (machineId: string): void => { clientStream.plug(Kefir.constant(ua(gaId, machineId))); },
 
   trackEvent: (category: string, action: string, label?: string, value?: number): void => {
@@ -59,5 +59,3 @@ const Analytics = { // tslint:disable-line variable-name
     return fn().then(tap(Analytics.trackTimedResult(start, category, action)));
   }
 };
-
-export default Analytics;

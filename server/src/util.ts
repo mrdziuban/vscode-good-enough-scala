@@ -2,7 +2,14 @@ export const applyTo = <A, B>(f: (a: A) => B) => (a: A): B => f(a);
 
 export const exhaustive = (a: never): never => a;
 
+export type NEL<A> = [A, ...A[]];
+export const toNel = <A>(as: A[]): NEL<A> | undefined => as.length > 0 ? [as[0], ...as.slice(1)] : undefined;
+
 export const now = () => (new Date()).getTime();
+
+export const ord = (i1: string | number, i2: string | number) => i1 < i2 ? -1 : (i1 === i2 ? 0 : 1);
+export const ordAll = <A>(...[f, fs]: [(a: A) => string | number, ...((a: A) => string | number)[]]) => (a1: A, a2: A): -1 | 0 | 1 =>
+  [f].concat(fs).reduce((acc: -1 | 0 | 1, fn: (a: A) => string | number) => acc === 0 ? ord(fn(a1), fn(a2)) : acc, ord(f(a1), f(a2)));
 
 export function pipe<A, B, C>(f1: (a: A) => B, f2: (b: B) => C): (a: A) => C;
 export function pipe<A, B, C, D>(f1: (a: A) => B, f2: (b: B) => C, f3: (c: C) => D): (a: A) => D;
