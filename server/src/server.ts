@@ -12,6 +12,7 @@ import {
   WorkspaceSymbolParams
 } from "vscode-languageserver";
 import {spawnSync} from "child_process";
+import * as commandExists from "command-exists";
 import * as fs from "fs";
 import FuzzySearch = require("fuzzy-search");
 import * as path from "path";
@@ -64,19 +65,33 @@ function gitScalaFiles(dir: string): string[] {
     .map((f: string) => `${dir}/${f}`);
 }
 
-// function findScalaFiles(dir: string): string[] {
-//   return getFilesCommand("find", [dir, "-name", "*.scala"]);
-// }
+function findCmdScalaFiles(dir: string): string[] {
+  return getFilesCommand("find", [dir, "-name", "*.scala"]);
+}
 
-function getScalaFiles(dir: string, files: string[] = []): string[] {
-  return fs.existsSync(path.join(dir, ".git"))
-    ? gitScalaFiles(dir)
-    : files.concat(flatten(fs.readdirSync(dir).map((file: string) => {
-      const joined = path.resolve(path.join(dir, file));
-      return fs.statSync(joined).isDirectory()
-        ? getScalaFiles(joined, files)
-        : (/\.scala$/.test(joined) ? [joined] : []);
-    })));
+function dirCmdScalaFiles(dir: string): string[] {
+  return getFilesCommand("dir", [dir, "/s/b", "*.scala"]);
+}
+
+function fsScalaFiles(dir: string, files: string[] = []): string[] {
+  return files.concat(flatten(fs.readdirSync(dir).map((file: string) => {
+    const joined = path.resolve(path.join(dir, file));
+    return fs.statSync(joined).isDirectory()
+      ? fsScalaFiles(joined, files)
+      : (/\.scala$/.test(joined) ? [joined] : []);
+  })));
+}
+
+function getScalaFiles(dir: string): string[] {
+  if (fs.existsSync(path.join(dir, ".git"))) {
+    return gitScalaFiles(dir);
+  } else if (commandExists.sync("find")) {
+    return findCmdScalaFiles(dir);
+  } else if (commandExists.sync("dir")) {
+    return dirCmdScalaFiles(dir);
+  } else {
+    return fsScalaFiles(dir);
+  }
 }
 
 interface ScalaSymbol {
