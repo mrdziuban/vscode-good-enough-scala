@@ -1,0 +1,29 @@
+#!/usr/bin/env bash
+
+set -exo pipefail
+
+if ! git diff --quiet; then
+  echo "Can't deploy with uncommitted changes" && exit 1
+fi
+
+if [ "$1" == 'major' ]; then
+  new_version=$(jq -r '.version | split(".") | (((.[0] | tonumber) + 1) | tostring) + ".0.0"' package.json)
+elif [ "$1" == 'minor' ]; then
+  new_version=$(jq -r '.version | split(".") | .[0] + "." + (((.[1] | tonumber) + 1) | tostring) + ".0"' package.json)
+elif [ "$1" == 'patch' ]; then
+  new_version=$(jq -r '.version | split(".") | .[0] + "." + .[1] + "." + (((.[2] | tonumber) + 1) | tostring)' package.json)
+else
+  echo 'Update type must be major, minor, or patch' && exit 1
+fi
+
+sed -i -E 's/"version": "[0-9]\.[0-9]\.[0-9]"/"version": "'$new_version'"/g' package.json
+
+git add package.json
+git commit -m "Bump version to v$new_version."
+git tag "v$new_version"
+
+yarn package
+$(yarn bin)/vsce publish
+
+git push
+git push --tags

@@ -54,6 +54,7 @@
     "compile": "yarn compile:client && yarn compile:server",
     "compile:client": "tsc -p client",
     "compile:server": "tsc -p server",
+    "deploy": "bin/deploy",
     "lint": "yarn lint:client && yarn lint:server",
     "lint:client": "tslint --project client",
     "lint:server": "tslint --project server",
