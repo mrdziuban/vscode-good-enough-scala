@@ -10,7 +10,7 @@ export function activate(context: ExtensionContext): void {
   const baseOpts = { module: serverModule, transport: TransportKind.ipc };
   client = new LanguageClient(
     "goodEnoughScalaLSP",
-    '"Good Enough" Scala LSP',
+    '"Good Enough" Scala Language Server',
     { run: baseOpts, debug: Object.assign(baseOpts, { options: { execArgv: ["--nolazy", "--inspect=6009"] } }) },
     {
       documentSelector: ["scala"],
