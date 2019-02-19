@@ -1,7 +1,7 @@
 import Kefir = require("kefir");
 import Settings from "./settings";
+import { now, tap } from "./util";
 import ua = require("universal-analytics");
-import {isPromise, now} from "./util";
 
 const gaId = "UA-43398941-7";
 
@@ -47,13 +47,16 @@ const Analytics = { // tslint:disable-line variable-name
     return a;
   },
 
-  timed: <A>(category: string, action: string) => (fn: () => A): A => {
+  timed: (category: string, action: string) => <A>(fn: () => A): A => {
     const start = now();
     const res = fn();
-    isPromise(res)
-      ? res.then(Analytics.trackTimedResult(start, category, action))
-      : Analytics.trackTimedResult(start, category, action)(res);
+    Analytics.trackTimedResult(start, category, action)(res);
     return res;
+  },
+
+  timedAsync: (category: string, action: string) => <A>(fn: () => PromiseLike<A>): PromiseLike<A> => {
+    const start = now();
+    return fn().then(tap(Analytics.trackTimedResult(start, category, action)));
   }
 };
 
