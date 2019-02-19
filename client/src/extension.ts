@@ -20,8 +20,8 @@ const readFile = (uri: Uri): PromiseLike<File> =>
     ({ uri: code2Protocol(uri), relativePath: relPath(uri), contents }));
 
 const readFiles = (uris: Uri[]): PromiseLike<Files> =>
-  uris.reduce((acc: Promise<Files>, uri: Uri) => acc.then((files: Files) =>
-    readFile(uri).then((f: File) => Object.assign({}, files, { [f.uri]: f }))), Promise.resolve({}));
+  Promise.all(uris.map((uri: Uri) => readFile(uri))).then((files: File[]) =>
+    Object.assign({}, ...Array.from(files, (f: File) => ({ [f.uri]: f }))));
 
 export const activate = (ctx: ExtensionContext) => {
   const serverModule = ctx.asAbsolutePath(path.join("server", "out", "server.js"));

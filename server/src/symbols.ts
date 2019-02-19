@@ -1,6 +1,6 @@
 import { Location, SymbolKind, TextDocumentPositionParams } from "vscode-languageserver";
 import { File, FileCache, Files, ScalaFile } from "./files";
-import { ordAll, path, pipe, prop } from "./util";
+import { applyTo, ordAll, path, pipe, prop } from "./util";
 import FuzzySearch = require("fuzzy-search");
 import R = require("rambda");
 
@@ -39,9 +39,9 @@ const extractMatches = (rx: RegExp, symbolType: string, kind: SymbolKind, file: 
 const alphaRx = /[a-zA-Z]/;
 const termRx = new RegExp(`[${alphaRx.source.slice(1, -1)}0-9_]`);
 
-const defaultExtractor = (symType: string, kind: SymbolKind) => (file: ScalaFile, contents: string): ScalaSymbol[] => {
+const defaultExtractor = (symType: string, kind: SymbolKind) => (file: ScalaFile, contents?: string): ScalaSymbol[] => {
   const rx = new RegExp(`${symType} (${alphaRx.source}${termRx.source}+)`, "g");
-  return R.flatten<ScalaSymbol>(contents.split("\n").map(extractMatches(rx, symType, kind, file)));
+  return R.flatten<ScalaSymbol>((contents || "").split("\n").map(extractMatches(rx, symType, kind, file)));
 };
 
 const symbolExtractors: SymbolExtractor[] = [
@@ -98,12 +98,12 @@ export class Symbols {
 
   search = (query: string) => this.fuzzySearch.search(query.toLowerCase());
 
-  updateCache = (syms: ScalaSymbol[], filesToRemove: string[]): SymbolCache => {
+  updateCache = (newSyms: ScalaSymbol[], filesToRemove: string[]): SymbolCache => {
     const shouldRemove: { [f: string]: true } = Object.assign({}, ...Array.from(filesToRemove, (f: string) => ({ [f]: true })));
-    this.cache = syms.reduce(
-      (acc: SymbolCache, sym: ScalaSymbol) => Object.assign({}, acc, { [sym.name]: (acc[sym.name] || []).concat([sym]) }),
-      Object.entries(this.cache).reduce((acc: SymbolCache, [name, xs]: [string, ScalaSymbol[]]) =>
-        Object.assign({}, acc, { [name]: xs.filter((s: ScalaSymbol) => !!!shouldRemove[s.file.uri]) }), {}));
+    const keptSyms = applyTo((xs: ScalaSymbol[]) => filesToRemove.length === 0 ? xs :
+      xs.filter((s: ScalaSymbol) => !!!shouldRemove[s.file.uri]))(R.flatten(Object.values(this.cache)));
+    this.cache = R.groupBy<ScalaSymbol>(prop("name"))(newSyms.concat(keptSyms)
+      .sort(ordAll(Symbols.symToUri, path("location", "character"), path("location", "line"))));
     this.fuzzySearch = Symbols.initFuzzySearch(this.cache);
     return this.cache;
   }
@@ -112,9 +112,7 @@ export class Symbols {
     this.files.getFileContents(tdp.textDocument.uri).then(pipe(R.split("\n"), prop(tdp.position.line), buildTerm(tdp.position.character)))
 
   symbolsForPos = (tdp: TextDocumentPositionParams): PromiseLike<ScalaSymbol[]> =>
-    this.getTerm(tdp)
-      .then((term: Term) => R.reject((sym: ScalaSymbol) =>
-        sym.file.uri === tdp.textDocument.uri && sym.location.line === tdp.position.line &&
-          sym.location.character >= term.range.start && sym.location.character <= term.range.end)(this.cache[term.term] || []))
-      .then((syms: ScalaSymbol[]) => syms.sort(ordAll(Symbols.symToUri, path("location", "character"), path("location", "line"))))
+    this.getTerm(tdp).then((term: Term) => R.reject((sym: ScalaSymbol) =>
+      sym.file.uri === tdp.textDocument.uri && sym.location.line === tdp.position.line &&
+        sym.location.character >= term.range.start && sym.location.character <= term.range.end)(this.cache[term.term] || []));
 }
