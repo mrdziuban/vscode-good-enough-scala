@@ -3,7 +3,7 @@ interface FuzzyOptions {
   sort?: boolean;
 }
 declare class FuzzySearch<T> {
-  constructor(haystack: T[], keys: string[], options?: FuzzyOptions);
+  constructor(haystack: T[], keys: (keyof T)[], options?: FuzzyOptions);
   search(needle: string): T[];
 }
 declare module "fuzzy-search" {
