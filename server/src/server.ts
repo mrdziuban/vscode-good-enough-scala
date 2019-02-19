@@ -1,6 +1,5 @@
 import {
   createConnection,
-  Definition,
   Location,
   ProposedFeatures,
   TextDocuments,
@@ -78,15 +77,22 @@ function extractMatches(rx: RegExp, symbolType: string, file: string): (line: st
   };
 }
 
+const alphaRx = /[a-zA-Z]/;
+const termRx = new RegExp(`[${alphaRx.source.slice(1, -1)}0-9_]`);
+
 function defaultExtractor(symbolType: string): (f: string, c: string) => ScalaSymbol[] {
   return (file: string, contents: string) => {
-    const rx = new RegExp(`${symbolType} ([a-zA-Z][a-zA-Z0-9_]+)`, "gi");
+    const rx = new RegExp(`${symbolType} (${alphaRx.source}${termRx.source}+)`, "g");
     return flatten(contents.split("\n").map(extractMatches(rx, symbolType, file)));
   };
 }
 
 const symbolExtractors: SymbolExtractor[] = [
-  defaultExtractor("class")
+  defaultExtractor("class"),
+  defaultExtractor("trait"),
+  defaultExtractor("object"),
+  defaultExtractor("val"),
+  defaultExtractor("def")
 ];
 
 function getScalaSymbols(file: string): ScalaSymbol[] {
@@ -117,6 +123,7 @@ connection.onInitialized(() => {
       });
       updateIndexedFiles();
       connection.console.log("finished indexing");
+      connection.console.log(JSON.stringify(symbols, null, 2));
     });
 });
 
@@ -124,11 +131,29 @@ connection.onInitialized(() => {
 // connection.onDidChangeWorkspaceFolders()
 // connection.onHover()
 
-connection.onDefinition((tdp: TextDocumentPositionParams): Definition => {
-  return Location.create(tdp.textDocument.uri, {
-    start: { line: 3, character: 5 },
-    end: { line: 3, character: 6 }
-  });
+function buildTerm(line: string, char: number): string {
+  const append = (term: string, changeIdx: (i: number) => number, concat: (newChar: string, term: string) => string): string => {
+    let idx = changeIdx(char);
+    while (termRx.test(line[idx])) {
+      term = concat(line[idx], term);
+      idx = changeIdx(idx);
+    }
+    return term;
+  };
+
+  let term = line[char];
+  term = append(term, (i: number) => i - 1, (c: string, t: string) => c + t);
+  term = append(term, (i: number) => i + 1, (c: string, t: string) => t + c);
+  return term;
+}
+
+connection.onDefinition((tdp: TextDocumentPositionParams): Location[] => {
+  const file = url.parse(tdp.textDocument.uri).path;
+  if (!file) { return []; }
+  const line = fs.readFileSync(file).toString().split("\n")[tdp.position.line];
+  const term = buildTerm(line, tdp.position.character);
+  return (symbols[term] || []).map((symbol: ScalaSymbol) =>
+    Location.create(`file://${symbol.file}`, { start: symbol.location, end: symbol.location }));
 });
 
 // // This handler provides the initial list of the completion items.
