@@ -144,7 +144,8 @@ const symbolExtractors: SymbolExtractor[] = [
   defaultExtractor("trait", SymbolKind.Interface),
   defaultExtractor("object", SymbolKind.Class),
   defaultExtractor("val", SymbolKind.Variable),
-  defaultExtractor("def", SymbolKind.Function)
+  defaultExtractor("def", SymbolKind.Function),
+  defaultExtractor("type", SymbolKind.TypeParameter)
 ];
 
 function getScalaSymbols(file: ScalaFile): ScalaSymbol[] {
