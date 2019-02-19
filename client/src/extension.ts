@@ -11,7 +11,7 @@ export function activate(context: ExtensionContext) {
     "goodEnoughScalaLSP",
     '"Good Enough" Scala LSP',
     { run: baseOpts, debug: Object.assign(baseOpts, { options: { execArgv: ["--nolazy", "--inspect=6009"] } }) },
-    {});
+    { documentSelector: [{ scheme: "file", language: "scala" }] });
   // Starting the client also launches the server
   client.start();
 }
