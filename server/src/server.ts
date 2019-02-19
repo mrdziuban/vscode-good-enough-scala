@@ -200,6 +200,7 @@ connection.onHover((tdp: TextDocumentPositionParams): Hover | undefined => {
     : undefined;
 });
 
+// TODO - consider more performant way of updating index
 connection.onDidSaveTextDocument(update);
 
 connection.listen();
