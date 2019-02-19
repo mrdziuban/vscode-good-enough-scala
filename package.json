@@ -28,7 +28,7 @@
     "vscode": "^1.23.0"
   },
   "activationEvents": [
-    "workspaceContains:**/*.{sc,scala}"
+    "workspaceContains:**/*.{sbt,sc,scala}"
   ],
   "contributes": {
     "configuration": {
