@@ -2,13 +2,13 @@ import {
   createConnection,
   Hover,
   Location,
-  ProposedFeatures,
-  TextDocuments,
-  TextDocumentPositionParams,
-  WorkspaceFolder,
   MarkupKind,
+  ProposedFeatures,
   SymbolInformation,
   SymbolKind,
+  TextDocumentPositionParams,
+  TextDocuments,
+  WorkspaceFolder,
   WorkspaceSymbolParams
 } from "vscode-languageserver";
 import { spawnSync } from "child_process";
@@ -16,7 +16,7 @@ import * as commandExists from "command-exists";
 import * as fs from "fs";
 import FuzzySearch = require("fuzzy-search");
 import * as path from "path";
-import * as url from "url"
+import * as url from "url";
 
 const connection = createConnection(ProposedFeatures.all);
 const documents = new TextDocuments();
@@ -54,7 +54,7 @@ function sortBy<A, B>(fn: (a: A) => B, arr: A[]): A[] {
 interface ScalaFile {
   absolutePath: string;
   relativePath: string;
-};
+}
 
 function loggedGetFiles(getMethod: string, dir: string, getter: (dir: string) => string[]): string[] {
   connection.console.log(`Getting scala files with ${getMethod}`);
@@ -91,7 +91,7 @@ function fsScalaFiles(dir: string, files: string[] = []): string[] {
 
 function getScalaFiles(dir: string): string[] {
   const [getMethod, getter] = ((): [string, (dir: string) => string[]] => {
-    switch(true) {
+    switch (true) {
       case fs.existsSync(path.join(dir, ".git")): return ["git", gitScalaFiles];
       case commandExists.sync("find"):            return ["`find`", findCmdScalaFiles];
       case commandExists.sync("dir"):             return ["`dir`", dirCmdScalaFiles];
@@ -113,26 +113,9 @@ function symToLoc(sym: ScalaSymbol): Location {
   return Location.create(`file://${sym.file.absolutePath}`, { start: sym.location, end: sym.location });
 }
 
-// type IndexedFiles = { [file: string]: { [sym: string]: number[] } };
-// let indexedFiles: IndexedFiles = {};
-
-type Symbols = { [sym: string]: ScalaSymbol[] };
+interface Symbols { [sym: string]: ScalaSymbol[]; }
 let symbols: Symbols = {};
 let fuzzySearch: FuzzySearch<ScalaSymbol> | undefined;
-
-// function updateIndexedFiles(): void {
-//   indexedFiles = Object.keys(symbols).reduce(
-//     (acc: IndexedFiles, s: string) => {
-//       symbols[s].forEach((sym: ScalaSymbol, idx: number) => {
-//         const abs = sym.file.absolutePath;
-//         acc[abs] = acc[abs] || {};
-//         acc[abs][sym.name] = acc[abs][sym.name] || [];
-//         acc[abs][sym.name].push(idx);
-//       });
-//       return acc;
-//     },
-//     {});
-// }
 
 type SymbolExtractor = (f: ScalaFile, c: string) => ScalaSymbol[];
 
@@ -186,8 +169,8 @@ function update(): void {
       const folders = flatten((fldrs || [])
         .filter((f: WorkspaceFolder) => /^file:\/\//i.test(f.uri))
         .map((f: WorkspaceFolder) => {
-          const path = url.parse(f.uri).path;
-          return !!path ? [[f, path]] : [];
+          const urlPath = url.parse(f.uri).path;
+          return !!urlPath ? [[f, urlPath]] : [];
         }));
       return flatten(folders.map(([_, dir]: [WorkspaceFolder, string]): ScalaFile[] => {
         const files = getScalaFiles(dir);
@@ -212,13 +195,13 @@ function update(): void {
 connection.onInitialized(update);
 
 function buildTerm(line: string, char: number): string {
-  const append = (term: string, changeIdx: (i: number) => number, concat: (newChar: string, term: string) => string): string => {
+  const append = (acc: string, changeIdx: (i: number) => number, concat: (newChar: string, term: string) => string): string => {
     let idx = changeIdx(char);
     while (line[idx] && termRx.test(line[idx])) {
-      term = concat(line[idx], term);
+      acc = concat(line[idx], acc);
       idx = changeIdx(idx);
     }
-    return term;
+    return acc;
   };
 
   let term = line[char];
@@ -264,7 +247,7 @@ connection.onWorkspaceSymbol((params: WorkspaceSymbolParams): SymbolInformation[
     }))
     : []);
 
-// TODO - consider more performant way of updating index
+// TODO - can a single file be updated in the index on save?
 connection.onDidSaveTextDocument(update);
 
 connection.listen();

@@ -4,7 +4,7 @@ import { LanguageClient, TransportKind } from "vscode-languageclient";
 
 let client: LanguageClient;
 
-export function activate(context: ExtensionContext) {
+export function activate(context: ExtensionContext): void {
   const serverModule = context.asAbsolutePath(path.join("server", "out", "server.js"));
   const baseOpts = { module: serverModule, transport: TransportKind.ipc };
   client = new LanguageClient(

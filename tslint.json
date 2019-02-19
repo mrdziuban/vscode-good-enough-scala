@@ -1,0 +1,74 @@
+{
+  "defaultSeverity": "warning",
+  "extends": [
+    "tslint:recommended"
+  ],
+  "linterOptions": {
+    "exclude": [
+      "**/*.js"
+    ]
+  },
+  "rules": {
+    "align": false,
+    "array-type": [
+      true,
+      "array"
+    ],
+    "eofline": false,
+    "interface-name": false,
+    "max-classes-per-file": false,
+    "max-line-length": false,
+    "member-access": [
+      true,
+      "no-public"
+    ],
+    "member-ordering": [
+      true,
+      "variables-before-functions",
+      "public-before-private",
+      "static-before-instance"
+    ],
+    "object-literal-key-quotes": false,
+    "object-literal-shorthand": false,
+    "object-literal-sort-keys": false,
+    "one-variable-per-declaration": false,
+    "only-arrow-functions": false,
+    "no-angle-bracket-type-assertion": false,
+    "no-consecutive-blank-lines": false,
+    "no-duplicate-variable": true,
+    "no-invalid-this": true,
+    "no-null-keyword": true,
+    "no-unused-expression": false,
+    "no-use-before-declare": true,
+    "ordered-imports": false,
+    "radix": false,
+    "semicolon": true,
+    "trailing-comma": false,
+    "triple-equals": [
+      true,
+      "allow-undefined-check"
+    ],
+    "typedef": [
+      true,
+      "call-signature",
+      "parameter",
+      "arrow-parameter",
+      "property-declaration"
+    ],
+    "variable-name": [
+      true,
+      "ban-keywords",
+      "check-format",
+      "allow-leading-underscore"
+    ],
+    "whitespace": [
+      true,
+      "check-branch",
+      "check-decl",
+      "check-operator",
+      "check-separator",
+      "check-rest-spread",
+      "check-type"
+    ]
+  }
+}
