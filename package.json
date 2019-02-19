@@ -2,8 +2,7 @@
   "name": "good-enough-scala-lsp",
   "description": "LSP extension to provide support for basic Scala definitions",
   "author": "Matt Dziuban <mrdziuban@gmail.com>",
-  "license": "UNLICENSED",
-  "private": true,
+  "license": "MIT",
   "version": "1.0.3",
   "repository": {
     "type": "git",
