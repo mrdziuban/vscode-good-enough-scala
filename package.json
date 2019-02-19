@@ -14,7 +14,7 @@
     "vscode": "^1.23.0"
   },
   "activationEvents": [
-    "onLanguage:scala"
+    "workspaceContains:**/*.scala"
   ],
   "main": "./client/out/extension",
   "scripts": {
