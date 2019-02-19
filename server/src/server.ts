@@ -1,7 +1,6 @@
 import {
   createConnection,
   DidChangeConfigurationNotification,
-  DidChangeConfigurationParams,
   Hover,
   InitializeParams,
   Location,
@@ -22,6 +21,7 @@ import * as fs from "fs";
 import FuzzySearch = require("fuzzy-search");
 import * as path from "path";
 import R = require("rambda");
+import Settings from "./settings";
 import {URL} from "url";
 import {now, withOpt} from "./util";
 
@@ -29,10 +29,8 @@ const connection = createConnection(ProposedFeatures.all);
 const documents = new TextDocuments();
 documents.listen(connection);
 
-let hasWorkspaceConfig = false;
-
 connection.onInitialize((params: InitializeParams) => {
-  hasWorkspaceConfig = !!params.capabilities.workspace && !!params.capabilities.workspace.configuration;
+  Settings.updateHasWorkspaceConfig(!!params.capabilities.workspace && !!params.capabilities.workspace.configuration);
   return {
     capabilities: {
       definitionProvider: true,
@@ -43,23 +41,7 @@ connection.onInitialize((params: InitializeParams) => {
   };
 });
 
-interface Settings { hoverEnabled: boolean; }
-const defaultSettings: Settings = { hoverEnabled: true };
-let settings: Settings = defaultSettings;
-
-const updateSettings = (params?: DidChangeConfigurationParams) => {
-  if (hasWorkspaceConfig) {
-    connection.workspace.getConfiguration("goodEnoughScala").then((s: Settings) => {
-      connection.console.log(`Scala settings changed: ${JSON.stringify(s)}`);
-      settings = s;
-    });
-  } else if (params && params.settings) {
-    connection.console.log(`Scala settings changed: ${JSON.stringify(params.settings.goodEnoughScala)}`);
-    settings = params.settings.goodEnoughScala || defaultSettings;
-  }
-};
-
-connection.onDidChangeConfiguration(updateSettings);
+connection.onDidChangeConfiguration(Settings.update(connection));
 
 const symPrefix = "__SCALA_SYMBOL__";
 const symName = (name: string) => `${symPrefix}${name}`;
@@ -189,8 +171,8 @@ const update = () => Analytics.timed<void>("action", "update")(() => {
 });
 
 connection.onInitialized((() => {
-  if (hasWorkspaceConfig) { connection.client.register(DidChangeConfigurationNotification.type); }
-  updateSettings();
+  if (Settings.hasWorkspaceConfig()) { connection.client.register(DidChangeConfigurationNotification.type); }
+  Settings.update(connection)();
   update();
   connection.sendRequest<string>("goodEnoughScalaMachineId").then(Analytics.init);
 }));
@@ -245,7 +227,7 @@ connection.onHover((tdp: TextDocumentPositionParams): Hover | undefined =>
         }).join("\n")
       }
     }))(symbolsForPos(tdp))),
-    () => undefined)(settings.hoverEnabled));
+    () => undefined)(Settings.get().hoverEnabled));
 
 connection.onWorkspaceSymbol((params: WorkspaceSymbolParams): SymbolInformation[] | undefined =>
   Analytics.timed<SymbolInformation[] | undefined>("lookup", "workspaceSymbol")(() =>
