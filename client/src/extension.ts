@@ -1,5 +1,5 @@
 import * as path from "path";
-import { ExtensionContext, Uri } from "vscode";
+import { env, ExtensionContext, Uri } from "vscode";
 import { LanguageClient, TransportKind } from "vscode-languageclient";
 import * as url from "url";
 
@@ -21,6 +21,9 @@ export const activate = (ctx: ExtensionContext) => {
         protocol2Code: Uri.parse
       }
     });
+
+  client.onReady().then(() => client.onRequest("goodEnoughScalaMachineId", () => env.machineId));
+
   // Starting the client also launches the server
   client.start();
 };

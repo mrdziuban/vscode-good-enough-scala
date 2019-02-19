@@ -14,7 +14,13 @@
     "command-exists": "~1.2.6",
     "file-uri-to-path": "~1.0.0",
     "fuzzy-search": "~2.1.0",
+    "kefir": "~3.8.3",
     "rambda": "github:mrdziuban/rambda#add-inc-typing",
+    "universal-analytics": "~0.4.17",
     "vscode-languageserver": "~4.2.1"
+  },
+  "devDependencies": {
+    "@types/kefir": "~3.7.0",
+    "@types/universal-analytics": "~0.4.2"
   }
 }
