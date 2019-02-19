@@ -144,9 +144,9 @@ const getScalaSymbols = (file: ScalaFile): ScalaSymbol[] => {
   return R.flatten<ScalaSymbol>(symbolExtractors.map((ex: SymbolExtractor) => ex(file, contents)));
 };
 
-const update = () => Analytics.timed<void>("action", "update")(() => {
+const update = () => Analytics.timed<PromiseLike<string[]>>("action", "update")(() => {
   const start = now();
-  connection.workspace.getWorkspaceFolders()
+  return connection.workspace.getWorkspaceFolders()
     .then((fldrs: WorkspaceFolder[] | null) =>
       R.flatten<ScalaFile>((fldrs || [])
         .filter((f: WorkspaceFolder) => /^file:\/\//i.test(f.uri))
@@ -167,6 +167,7 @@ const update = () => Analytics.timed<void>("action", "update")(() => {
       }, {});
       fuzzySearch = new FuzzySearch(R.flatten<ScalaSymbol>(Object.values(symbols)), ["_name"], { caseSensitive: false, sort: true });
       connection.console.log(`Finished indexing ${Object.keys(symbols).length} scala symbols in ${now() - start}ms`);
+      return Object.keys(symbols);
     });
 });
 

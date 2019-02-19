@@ -1,7 +1,7 @@
 import Kefir = require("kefir");
 import Settings from "./settings";
 import ua = require("universal-analytics");
-import {now} from "./util";
+import {isPromise, now} from "./util";
 
 const gaId = "UA-43398941-7";
 
@@ -37,15 +37,22 @@ const Analytics = {
     timingStream.plug(Kefir.constant({ category, action, duration }));
   },
 
+  trackTimedResult: <A>(start: number, category: string, action: string) => (a: A): A => {
+    setImmediate(() => {
+      Array.isArray(a)
+        ? Analytics.trackEvent(category, action, "results", a.length)
+        : Analytics.trackEvent(category, action);
+      Analytics.trackTiming(category, action, now() - start);
+    });
+    return a;
+  },
+
   timed: <A>(category: string, action: string) => (fn: () => A): A => {
     const start = now();
     const res = fn();
-    setImmediate(() => {
-      Array.isArray(res)
-      ? Analytics.trackEvent(category, action, "results", res.length)
-      : Analytics.trackEvent(category, action);
-      Analytics.trackTiming(category, action, now() - start);
-    });
+    isPromise(res)
+      ? res.then(Analytics.trackTimedResult(start, category, action))
+      : Analytics.trackTimedResult(start, category, action)(res);
     return res;
   }
 };
