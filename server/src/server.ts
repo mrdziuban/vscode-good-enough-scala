@@ -1,4 +1,4 @@
-import { createConnection, DidChangeConfigurationNotification, DidChangeTextDocumentParams, DidChangeWatchedFilesParams, FileChangeType, FileEvent, Hover, InitializeParams, Location, MarkupKind, ProposedFeatures, SymbolInformation, SymbolKind, TextDocumentContentChangeEvent, TextDocumentPositionParams, TextDocuments, TextDocumentSyncKind, WorkspaceSymbolParams } from "vscode-languageserver";
+import { CodeAction, CodeActionKind, CodeActionParams, createConnection, DidChangeConfigurationNotification, DidChangeTextDocumentParams, DidChangeWatchedFilesParams, FileChangeType, FileEvent, Hover, InitializeParams, Location, MarkupKind, ProposedFeatures, SymbolInformation, SymbolKind, TextDocumentContentChangeEvent, TextDocumentPositionParams, TextDocuments, TextDocumentSyncKind, TextEdit, WorkspaceSymbolParams } from "vscode-languageserver";
 import Analytics from "./analytics";
 import Settings from "./settings";
 import { applyTo, exhaustive, now, path, pipe, prop, withOpt } from "./util";
@@ -13,6 +13,7 @@ connection.onInitialize((params: InitializeParams) => {
   Settings.updateHasWorkspaceConfig(!!params.capabilities.workspace && !!params.capabilities.workspace.configuration);
   return {
     capabilities: {
+      codeActionProvider: { codeActionKinds: [CodeActionKind.SourceOrganizeImports] },
       definitionProvider: true,
       hoverProvider: true,
       workspaceSymbolProvider: true,
@@ -164,7 +165,7 @@ connection.onDefinition((tdp: TextDocumentPositionParams): PromiseLike<Location[
 
 const comp = (i1: string | number, i2: string | number) => i1 < i2 ? -1 : (i1 === i2 ? 0 : 1);
 const compAll = <A>(...[f, fs]: [(a: A) => string | number, ...((a: A) => string | number)[]]) => (a1: A, a2: A): -1 | 0 | 1 =>
-  [f].concat(fs).reduce((acc: -1 | 0 | 1, fn: (a: A) => string | number) => acc === 0 ? comp(fn(a1), fn(a2)) : acc, comp(f(a1), f(a2)))
+  [f].concat(fs).reduce((acc: -1 | 0 | 1, fn: (a: A) => string | number) => acc === 0 ? comp(fn(a1), fn(a2)) : acc, comp(f(a1), f(a2)));
 
 connection.onHover((tdp: TextDocumentPositionParams): PromiseLike<Hover> | undefined =>
   R.ifElse(
@@ -220,5 +221,48 @@ connection.onDidChangeWatchedFiles((params: DidChangeWatchedFilesParams) => {
   if (toIndex.length === 0) { debouncedIndexFiles("indexChangedWatched")(delFiles); }
   getFiles(toIndex).then((files: FileContents) => debouncedIndexFiles("indexChangedWatched")(Object.assign({}, files, delFiles)));
 });
+
+const baseCodeAction = (kind: CodeActionKind) => (f: (params: CodeActionParams) => PromiseLike<CodeAction>): [CodeActionKind, (params: CodeActionParams) => PromiseLike<CodeAction>] =>
+  [kind, (params: CodeActionParams) => Analytics.timedAsync("action", "organizeImports")(
+    () => f(params).then((ca: CodeAction) => Object.assign({}, ca, { kind })))];
+
+interface ImportGroup { startLine: number; imports: string[]; }
+
+const organizeImports = baseCodeAction(CodeActionKind.SourceOrganizeImports)((params: CodeActionParams): PromiseLike<CodeAction> =>
+  getFileContents(params.textDocument.uri).then((contents: string) => {
+    const importGroups: [ImportGroup, ...ImportGroup[]] =
+      contents.split("\n").reduce((acc: [ImportGroup, ...ImportGroup[]], line: string, idx: number) => {
+        const isImport = /^import /.test(line.trim());
+        if (isImport) {
+          acc[0] = { startLine: acc[0].imports.length > 0 ? acc[0].startLine : idx, imports: acc[0].imports.concat([line]) };
+        } else if (acc[0].imports.length > 0) {
+          acc.unshift({ startLine: idx, imports: [] });
+        }
+        return acc;
+      }, [{ startLine: 0, imports: [] }]);
+
+    const edits: TextEdit[] = R.flatten(importGroups.map((importGroup: ImportGroup) =>
+      importGroup.imports.sort().map((line: string, idx: number) => ({
+        newText: line,
+        range: {
+          start: { line: importGroup.startLine + idx, character: 0 },
+          end: { line: importGroup.startLine + idx, character: Number.MAX_VALUE }
+        }
+      }))));
+
+    return {
+      title: "Organize Imports",
+      edit: { changes: { [params.textDocument.uri]: edits } }
+    };
+  }));
+
+const codeActions: [CodeActionKind, (params: CodeActionParams) => PromiseLike<CodeAction>][] = [
+  organizeImports
+];
+
+connection.onCodeAction((params: CodeActionParams) =>
+  Promise.all((params.context.only && params.context.only.length > 0
+    ? codeActions.filter(([kind, _]: [CodeActionKind, any]) => (params.context.only || []).includes(kind))
+    : codeActions).map(([_, f]: [any, (params: CodeActionParams) => PromiseLike<CodeAction>]) => f(params))));
 
 connection.listen();

@@ -14,6 +14,7 @@ This means that the extension provides:
   - Includes Scala classes, traits, objects, types, variables, and functions
 - Links to symbol definitions on hover
 - Support for searching all symbols in a workspace
+- Basic code actions, like organizing imports alphabetically
 
 The extension *does not* provide:
 
