@@ -14,6 +14,10 @@ fuzzy-search@~2.1.0:
   version "2.1.0"
   resolved "https://registry.yarnpkg.com/fuzzy-search/-/fuzzy-search-2.1.0.tgz#925382ee321ee3094fdcb76865de2b6243456e14"
 
+"rambda@github:mrdziuban/rambda#add-inc-typing":
+  version "1.1.3"
+  resolved "https://codeload.github.com/mrdziuban/rambda/tar.gz/11d4315290a6cd7801cf4d74626615f428837a22"
+
 vscode-jsonrpc@^3.6.2:
   version "3.6.2"
   resolved "https://registry.yarnpkg.com/vscode-jsonrpc/-/vscode-jsonrpc-3.6.2.tgz#3b5eef691159a15556ecc500e9a8a0dd143470c8"
