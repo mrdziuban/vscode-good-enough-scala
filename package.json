@@ -1,5 +1,5 @@
 {
-  "name": "good-enough-scala-lsp-local",
+  "name": "good-enough-scala-lsp",
   "displayName": "\"Good Enough\" Scala Language Server",
   "description": "Language server to provide support for basic Scala definitions",
   "icon": "image/icon.png",
