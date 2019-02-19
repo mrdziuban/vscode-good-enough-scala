@@ -1,6 +1,9 @@
 import {
   createConnection,
+  DidChangeConfigurationNotification,
+  DidChangeConfigurationParams,
   Hover,
+  InitializeParams,
   Location,
   MarkupKind,
   ProposedFeatures,
@@ -23,14 +26,37 @@ const connection = createConnection(ProposedFeatures.all);
 const documents = new TextDocuments();
 documents.listen(connection);
 
-connection.onInitialize(() => ({
-  capabilities: {
-    definitionProvider: true,
-    hoverProvider: true,
-    workspaceSymbolProvider: true,
-    textDocumentSync: documents.syncKind
+let hasWorkspaceConfig = false;
+
+connection.onInitialize((params: InitializeParams) => {
+  hasWorkspaceConfig = !!params.capabilities.workspace && !!params.capabilities.workspace.configuration;
+  return {
+    capabilities: {
+      definitionProvider: true,
+      hoverProvider: true,
+      workspaceSymbolProvider: true,
+      textDocumentSync: documents.syncKind
+    }
   }
-}));
+});
+
+interface Settings { hoverEnabled: boolean }
+const defaultSettings: Settings = { hoverEnabled: true };
+let settings: Settings = defaultSettings;
+
+function updateSettings(params?: DidChangeConfigurationParams): void {
+  if (hasWorkspaceConfig) {
+    connection.workspace.getConfiguration("goodEnoughScala").then((s: Settings) => {
+      connection.console.log(`Scala settings changed: ${JSON.stringify(s)}`);
+      settings = s
+    });
+  } else if (params && params.settings) {
+    connection.console.log(`Scala settings changed: ${JSON.stringify(params.settings.goodEnoughScala)}`);
+    settings = params.settings.goodEnoughScala || defaultSettings;
+  }
+}
+
+connection.onDidChangeConfiguration(updateSettings);
 
 const symPrefix = "__SCALA_SYMBOL__";
 function symName(name: string): string { return `${symPrefix}${name}`; }
@@ -195,7 +221,11 @@ function update(): void {
     });
 }
 
-connection.onInitialized(update);
+connection.onInitialized((() => {
+  if (hasWorkspaceConfig) { connection.client.register(DidChangeConfigurationNotification.type); }
+  updateSettings();
+  update();
+}));
 
 function buildTerm(line: string, char: number): string {
   const append = (acc: string, changeIdx: (i: number) => number, concat: (newChar: string, term: string) => string): string => {
@@ -226,6 +256,7 @@ connection.onDefinition((tdp: TextDocumentPositionParams): Location[] => {
 });
 
 connection.onHover((tdp: TextDocumentPositionParams): Hover | undefined => {
+  if (!settings.hoverEnabled) { return undefined; }
   const term = getTerm(tdp);
   return (term && symbols[term])
     ? {
@@ -242,12 +273,11 @@ connection.onHover((tdp: TextDocumentPositionParams): Hover | undefined => {
 
 connection.onWorkspaceSymbol((params: WorkspaceSymbolParams): SymbolInformation[] =>
   fuzzySearch
-    ? fuzzySearch.search(params.query.toLowerCase())
-    .map((sym: ScalaSymbol) => ({
-      name: sym.name.replace(new RegExp(`^${symPrefix}`), ""),
-      kind: sym.kind,
-      location: symToLoc(sym)
-    }))
+    ? fuzzySearch.search(params.query.toLowerCase()).map((sym: ScalaSymbol) => ({
+        name: sym.name.replace(new RegExp(`^${symPrefix}`), ""),
+        kind: sym.kind,
+        location: symToLoc(sym)
+      }))
     : []);
 
 // TODO - can a single file be updated in the index on save?
