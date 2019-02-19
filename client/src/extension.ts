@@ -10,12 +10,18 @@ let client: LanguageClient;
 const code2Protocol = (uri: Uri) => url.format(url.parse(uri.toString(true)));
 const protocol2Code = Uri.parse;
 
-const readFile = (uri: Uri): PromiseLike<{ [f: string]: string }> =>
-  workspace.openTextDocument(uri).then((td: TextDocument) => td.getText()).then((content: string) => ({ [code2Protocol(uri)]: content }));
+interface File { uri: string; relativePath: string; contents: string; }
+interface Files { [uri: string]: File }
 
-const readFiles = (uris: Uri[]): PromiseLike<{ [f: string]: string }> =>
-  uris.reduce((acc: Promise<{ [f: string]: string }>, uri: Uri) => Promise.all([acc, readFile(uri)])
-    .then((os: { [f: string]: string }[]) => Object.assign({}, ...os)), Promise.resolve({}));
+const relPath = (uri: Uri | string) => workspace.asRelativePath(uri);
+
+const readFile = (uri: Uri): PromiseLike<File> =>
+  workspace.openTextDocument(uri).then((td: TextDocument) => td.getText()).then((contents: string) =>
+    ({ uri: code2Protocol(uri), relativePath: relPath(uri), contents }));
+
+const readFiles = (uris: Uri[]): PromiseLike<Files> =>
+  uris.reduce((acc: Promise<Files>, uri: Uri) => acc.then((files: Files) =>
+    readFile(uri).then((f: File) => Object.assign({}, files, { [f.uri]: f }))), Promise.resolve({}));
 
 export const activate = (ctx: ExtensionContext) => {
   const serverModule = ctx.asAbsolutePath(path.join("server", "out", "server.js"));
@@ -33,6 +39,7 @@ export const activate = (ctx: ExtensionContext) => {
   client.onReady().then(() => {
     client.onRequest("goodEnoughScalaGetAllFiles", () => workspace.findFiles("**/*.scala").then(readFiles));
     client.onRequest("goodEnoughScalaGetFiles", ({ uris }: { uris: string[]; }) => readFiles(uris.map(protocol2Code)));
+    client.onRequest("goodEnoughScalaGetRelPath", ({ uri }: { uri: string; }) => relPath(uri));
     client.onRequest("goodEnoughScalaMachineId", () => env.machineId);
   });
 
