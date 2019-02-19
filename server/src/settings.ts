@@ -12,7 +12,7 @@ let settings: Settings = defaultSettings;
 
 let hasWorkspaceConfig = false;
 
-const Settings = {
+const Settings = { // tslint:disable-line variable-name
   get: () => settings,
 
   hasWorkspaceConfig: () => hasWorkspaceConfig,
