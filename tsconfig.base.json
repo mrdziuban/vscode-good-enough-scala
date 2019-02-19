@@ -1,11 +1,10 @@
 {
   "compilerOptions": {
     "allowJs": true,
-    "allowSyntheticDefaultImports": true,
     "alwaysStrict": true,
     "esModuleInterop": false,
     "forceConsistentCasingInFileNames": true,
-    "lib": ["es6"],
+    "lib": ["es2017"],
     "module": "commonjs",
     "moduleResolution": "node",
     "noFallthroughCasesInSwitch": true,

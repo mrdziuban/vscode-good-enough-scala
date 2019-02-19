@@ -6,9 +6,13 @@ import {
   TextDocuments,
   TextDocumentPositionParams,
   WorkspaceFolder,
-  MarkupKind
+  MarkupKind,
+  SymbolInformation,
+  SymbolKind,
+  WorkspaceSymbolParams
 } from "vscode-languageserver";
 import * as fs from "fs";
+import FuzzySearch = require("fuzzy-search");
 import * as path from "path";
 import * as url from "url"
 
@@ -20,11 +24,13 @@ connection.onInitialize(() => ({
   capabilities: {
     definitionProvider: true,
     hoverProvider: true,
+    workspaceSymbolProvider: true,
     textDocumentSync: documents.syncKind
   }
 }));
 
-function symName(name: string): string { return `__SCALA_SYMBOL__${name}`; }
+const symPrefix = "__SCALA_SYMBOL__";
+function symName(name: string): string { return `${symPrefix}${name}`; }
 
 function flatten<A>(arr: A[][]): A[] { return [].concat.apply([], arr); }
 
@@ -58,9 +64,15 @@ function getScalaFiles(dir: string, files: string[] = []): string[] {
 }
 
 interface ScalaSymbol {
-  symbolName: string;
+  name: string;
+  _name: string;
+  kind: SymbolKind;
   file: ScalaFile;
   location: { line: number; character: number; };
+}
+
+function symToLoc(sym: ScalaSymbol): Location {
+  return Location.create(`file://${sym.file.absolutePath}`, { start: sym.location, end: sym.location });
 }
 
 // type IndexedFiles = { [file: string]: { [sym: string]: number[] } };
@@ -68,6 +80,7 @@ interface ScalaSymbol {
 
 type Symbols = { [sym: string]: ScalaSymbol[] };
 let symbols: Symbols = {};
+let fuzzySearch: FuzzySearch<ScalaSymbol> | undefined;
 
 // function updateIndexedFiles(): void {
 //   indexedFiles = Object.keys(symbols).reduce(
@@ -75,8 +88,8 @@ let symbols: Symbols = {};
 //       symbols[s].forEach((sym: ScalaSymbol, idx: number) => {
 //         const abs = sym.file.absolutePath;
 //         acc[abs] = acc[abs] || {};
-//         acc[abs][sym.symbolName] = acc[abs][sym.symbolName] || [];
-//         acc[abs][sym.symbolName].push(idx);
+//         acc[abs][sym.name] = acc[abs][sym.name] || [];
+//         acc[abs][sym.name].push(idx);
 //       });
 //       return acc;
 //     },
@@ -85,14 +98,16 @@ let symbols: Symbols = {};
 
 type SymbolExtractor = (f: ScalaFile, c: string) => ScalaSymbol[];
 
-function extractMatches(rx: RegExp, symbolType: string, file: ScalaFile): (line: string, lineNum: number) => ScalaSymbol[] {
+function extractMatches(rx: RegExp, symbolType: string, kind: SymbolKind, file: ScalaFile): (line: string, lineNum: number) => ScalaSymbol[] {
   return (line: string, lineNum: number) => {
     const offset = symbolType.length + 2;
     const retVal = [];
     let matches = rx.exec(line);
     while (!!matches) {
       retVal.push({
-        symbolName: symName(matches[1]),
+        name: symName(matches[1]),
+        _name: matches[1],
+        kind,
         file,
         location: { line: lineNum, character: matches.index + offset }
       });
@@ -105,19 +120,19 @@ function extractMatches(rx: RegExp, symbolType: string, file: ScalaFile): (line:
 const alphaRx = /[a-zA-Z]/;
 const termRx = new RegExp(`[${alphaRx.source.slice(1, -1)}0-9_]`);
 
-function defaultExtractor(symbolType: string): (f: ScalaFile, c: string) => ScalaSymbol[] {
+function defaultExtractor(symbolType: string, kind: SymbolKind): (f: ScalaFile, c: string) => ScalaSymbol[] {
   return (file: ScalaFile, contents: string) => {
     const rx = new RegExp(`${symbolType} (${alphaRx.source}${termRx.source}+)`, "g");
-    return flatten(contents.split("\n").map(extractMatches(rx, symbolType, file)));
+    return flatten(contents.split("\n").map(extractMatches(rx, symbolType, kind, file)));
   };
 }
 
 const symbolExtractors: SymbolExtractor[] = [
-  defaultExtractor("class"),
-  defaultExtractor("trait"),
-  defaultExtractor("object"),
-  defaultExtractor("val"),
-  defaultExtractor("def")
+  defaultExtractor("class", SymbolKind.Class),
+  defaultExtractor("trait", SymbolKind.Interface),
+  defaultExtractor("object", SymbolKind.Class),
+  defaultExtractor("val", SymbolKind.Variable),
+  defaultExtractor("def", SymbolKind.Function)
 ];
 
 function getScalaSymbols(file: ScalaFile): ScalaSymbol[] {
@@ -144,11 +159,12 @@ function update(): void {
       Promise.all(files.map((file: ScalaFile) =>
         new Promise((resolve: (syms: ScalaSymbol[]) => void) => resolve(getScalaSymbols(file))))))
     // This is the wrong type but the compiler is complaining. See cast below.
-    .then((symsPromise: Promise<ScalaSymbol[][]>) => {
-      symbols = flatten(<any>symsPromise as ScalaSymbol[][]).reduce((acc: Symbols, sym: ScalaSymbol) => {
-        acc[sym.symbolName] = (acc[sym.symbolName] || []).concat([sym]);
+    .then((syms: Promise<ScalaSymbol[][]>) => {
+      symbols = flatten(<any>syms as ScalaSymbol[][]).reduce((acc: Symbols, sym: ScalaSymbol) => {
+        acc[sym.name] = (acc[sym.name] || []).concat([sym]);
         return acc;
       }, {});
+      fuzzySearch = new FuzzySearch(flatten(Object.values(symbols)), ["_name"], { caseSensitive: false, sort: true });
       // updateIndexedFiles();
       connection.console.log(`Finished indexing ${Object.keys(symbols).length} scala symbols in ${now() - start}ms`);
     });
@@ -181,8 +197,7 @@ function getTerm(tdp: TextDocumentPositionParams): string | undefined {
 
 connection.onDefinition((tdp: TextDocumentPositionParams): Location[] => {
   const term = getTerm(tdp);
-  return ((term && symbols[term]) || []).map((sym: ScalaSymbol) =>
-    Location.create(`file://${sym.file.absolutePath}`, { start: sym.location, end: sym.location }));
+  return ((term && symbols[term]) || []).map(symToLoc);
 });
 
 connection.onHover((tdp: TextDocumentPositionParams): Hover | undefined => {
@@ -199,6 +214,16 @@ connection.onHover((tdp: TextDocumentPositionParams): Hover | undefined => {
     }
     : undefined;
 });
+
+connection.onWorkspaceSymbol((params: WorkspaceSymbolParams): SymbolInformation[] =>
+  fuzzySearch
+    ? fuzzySearch.search(params.query.toLowerCase())
+    .map((sym: ScalaSymbol) => ({
+      name: sym.name.replace(new RegExp(`^${symPrefix}`), ""),
+      kind: sym.kind,
+      location: symToLoc(sym)
+    }))
+    : []);
 
 // TODO - consider more performant way of updating index
 connection.onDidSaveTextDocument(update);
