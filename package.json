@@ -16,8 +16,14 @@
   },
   "bugs": "https://github.com/mrdziuban/vscode-good-enough-scala/issues",
   "publisher": "mrdziuban",
-  "categories": ["Programming Languages"],
-  "keywords": ["scala", "language-server", "definitions"],
+  "categories": [
+    "Programming Languages"
+  ],
+  "keywords": [
+    "scala",
+    "language-server",
+    "definitions"
+  ],
   "engines": {
     "vscode": "^1.23.0"
   },
@@ -46,19 +52,23 @@
   "scripts": {
     "clean": "(git ls-files -o -z | xargs -0 rm) && yarn",
     "compile": "yarn compile:client && yarn compile:server",
-    "compile:client": "tsc -p ./client/tsconfig.json",
-    "compile:server": "tsc -p ./server/tsconfig.json",
+    "compile:client": "tsc -p client",
+    "compile:server": "tsc -p server",
     "lint": "yarn lint:client && yarn lint:server",
     "lint:client": "tslint --project client",
     "lint:server": "tslint --project server",
-    "package": "vsce package --yarn",
+    "minify": "yarn minify:client && yarn minify:server",
+    "minify:client": "find client/out -type f -name *.js -exec terser -c -m --ecma 8 -o {} {} \\;",
+    "minify:server": "find server/out -type f -name *.js -exec terser -c -m --ecma 8 -o {} {} \\;",
+    "package": "yarn clean && vsce package --yarn",
     "postinstall": "cd client && yarn && cd ../server && yarn && cd ..",
-    "vscode:prepublish": "cd client && yarn update-vscode && cd .. && yarn compile",
-    "watch:client": "tsc -w -p ./client/tsconfig.json",
-    "watch:server": "tsc -w -p ./server/tsconfig.json"
+    "vscode:prepublish": "cd client && yarn update-vscode && cd .. && yarn compile && yarn minify",
+    "watch:client": "tsc -w -p client",
+    "watch:server": "tsc -w -p server"
   },
   "devDependencies": {
     "@types/node": "~11.9.3",
+    "terser": "~3.16.1",
     "tslint": "~5.12.1",
     "typescript": "~3.3.3",
     "vsce": "~1.57.0"
