@@ -261,7 +261,7 @@ connection.onHover((tdp: TextDocumentPositionParams): Hover | undefined =>
         kind: MarkupKind.Markdown,
         value: R.sortBy(R.path(["file", "absolutePath"]))(syms).map((sym: ScalaSymbol) => {
           const line = `${sym.location.line + 1},${sym.location.character}`;
-          return `- [${sym.file.relativePath}:${line}](${symToUri(sym)}#L${line})`;
+          return `[${sym.file.relativePath}:${line}](${symToUri(sym)}#L${line})  `;
         }).join("\n")
       }
     }))(symbolsForPos(tdp)),
