@@ -13,10 +13,10 @@ import {
 } from "vscode-languageserver";
 import { spawnSync } from "child_process";
 import * as commandExists from "command-exists";
+import fileUriToPath = require("file-uri-to-path");
 import * as fs from "fs";
 import FuzzySearch = require("fuzzy-search");
 import * as path from "path";
-import * as url from "url";
 
 const connection = createConnection(ProposedFeatures.all);
 const documents = new TextDocuments();
@@ -165,18 +165,12 @@ function getScalaSymbols(file: ScalaFile): ScalaSymbol[] {
 function update(): void {
   const start = now();
   connection.workspace.getWorkspaceFolders()
-    .then((fldrs: WorkspaceFolder[] | null) => {
-      const folders = flatten((fldrs || [])
+    .then((fldrs: WorkspaceFolder[] | null) =>
+      flatten((fldrs || [])
         .filter((f: WorkspaceFolder) => /^file:\/\//i.test(f.uri))
-        .map((f: WorkspaceFolder) => {
-          const urlPath = url.parse(f.uri).path;
-          return !!urlPath ? [[f, urlPath]] : [];
-        }));
-      return flatten(folders.map(([_, dir]: [WorkspaceFolder, string]): ScalaFile[] => {
-        const files = getScalaFiles(dir);
-        return files.map((f: string) => ({ absolutePath: f, relativePath: f.replace(`${dir}${path.sep}`, "") }));
-      }));
-    })
+        .map((f: WorkspaceFolder) => fileUriToPath(f.uri))
+        .map((dir: string): ScalaFile[] =>
+          getScalaFiles(dir).map((f: string) => ({ absolutePath: f, relativePath: f.replace(`${dir}${path.sep}`, "") })))))
     .then((files: ScalaFile[]) =>
       Promise.all(files.map((file: ScalaFile) =>
         new Promise((resolve: (syms: ScalaSymbol[]) => void) => resolve(getScalaSymbols(file))))))
@@ -211,7 +205,7 @@ function buildTerm(line: string, char: number): string {
 }
 
 function getTerm(tdp: TextDocumentPositionParams): string | undefined {
-  const file = url.parse(tdp.textDocument.uri).path;
+  const file = fileUriToPath(tdp.textDocument.uri);
   if (!file) { return; }
   const line = fs.readFileSync(file).toString().split("\n")[tdp.position.line];
   return symName(buildTerm(line, tdp.position.character));
