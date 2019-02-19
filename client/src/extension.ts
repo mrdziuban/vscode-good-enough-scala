@@ -7,8 +7,8 @@ let client: LanguageClient;
 export function activate(context: ExtensionContext) {
   const serverModule = context.asAbsolutePath(path.join("server", "out", "server.js"));
   client = new LanguageClient(
-    "basicScalaLSP",
-    "Basic Scala LSP",
+    "goodEnoughScalaLSP",
+    '"Good Enough" Scala LSP',
     {
       run: { module: serverModule, transport: TransportKind.ipc },
       debug: { module: serverModule, transport: TransportKind.ipc, options: { execArgv: ["--nolazy", "--inspect=6009"] } }

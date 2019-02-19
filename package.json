@@ -1,5 +1,5 @@
 {
-  "name": "basic-scala-lsp",
+  "name": "good-enough-scala-lsp",
   "description": "LSP extension to provide support for basic Scala definitions",
   "author": "Matt Dziuban <mrdziuban@gmail.com>",
   "license": "UNLICENSED",
@@ -7,7 +7,7 @@
   "version": "1.0.3",
   "repository": {
     "type": "git",
-    "url": "https://github.com/mrdziuban/vscode-basic-scala"
+    "url": "https://github.com/mrdziuban/vscode-good-enough-scala"
   },
   "publisher": "mrdziuban",
   "engines": {
