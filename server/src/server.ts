@@ -6,7 +6,7 @@ import { FileIndex as FileIndexStatic } from "./fileIndex";
 import { FileCache, Files as FilesStatic } from "./files";
 import Settings from "./settings";
 import { ScalaSymbol, Symbols as SymbolsStatic } from "./symbols";
-import { applyTo, exhaustive, pipe, tap, toNel } from "./util";
+import { applyTo, exhaustive, path, pipe, setPath, toNel } from "./util";
 import R = require("rambda");
 
 const connection = createConnection(ProposedFeatures.all);
@@ -44,7 +44,7 @@ connection.onInitialized((() => {
 connection.onDefinition((tdp: TextDocumentPositionParams): PromiseLike<Location[]> =>
   Analytics.timedAsync("lookup", "definition")(() => Symbols.symbolsForPos(tdp).then((syms: ScalaSymbol[]) =>
     // The character position for a definition lookup needs to be decremented by 1 for some reason
-    syms.map(pipe(SymbolsStatic.symToLoc, tap((loc: Location) => loc.range.start.character = loc.range.start.character - 1))))));
+    syms.map(pipe(SymbolsStatic.symToLoc, (l: Location) => setPath("range", "start", "character")(path("range", "start", "character")(l) - 1)(l))))));
 
 connection.onHover((tdp: TextDocumentPositionParams): PromiseLike<Hover> | undefined =>
   R.ifElse(
