@@ -3,7 +3,6 @@ import { compileAll, srcDir as syntaxSrcDir } from "./syntax";
 import * as path from "path";
 import { spawn, ChildProcess } from "child_process";
 
-// const procs: ChildProcess[] = [];
 const rootDir = path.resolve(__dirname, "..");
 const cleanupFns: (() => void)[] = [];
 let exiting = false;
