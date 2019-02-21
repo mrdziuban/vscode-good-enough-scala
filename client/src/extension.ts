@@ -10,6 +10,8 @@ let client: LanguageClient;
 const code2Protocol = (uri: Uri) => url.format(url.parse(uri.toString(true)));
 const protocol2Code = Uri.parse;
 
+const glob = "**/*.{routes,sbt,sc,scala,scala.html}";
+
 interface File { uri: string; relativePath: string; contents: string; }
 interface Files { [uri: string]: File; }
 
@@ -31,13 +33,13 @@ export const activate = (ctx: ExtensionContext) => {
     '"Good Enough" Scala Language Server',
     { run: baseOpts, debug: Object.assign(baseOpts, { options: { execArgv: ["--nolazy", "--inspect=6009"] } }) },
     {
-      documentSelector: ["scala"],
-      synchronize: { fileEvents: workspace.createFileSystemWatcher("**/*.{sbt,scala,sc}") },
+      documentSelector: ["routes", "scala", "twirl"],
+      synchronize: { fileEvents: workspace.createFileSystemWatcher(glob) },
       uriConverters: { code2Protocol, protocol2Code }
     });
 
   client.onReady().then(() => {
-    client.onRequest("goodEnoughScalaGetAllFiles", () => workspace.findFiles("**/*.{sbt,scala,sc}").then(readFiles));
+    client.onRequest("goodEnoughScalaGetAllFiles", () => workspace.findFiles(glob).then(readFiles));
     client.onRequest("goodEnoughScalaGetFiles", ({ uris }: { uris: string[]; }) => readFiles(uris.map(protocol2Code)));
     client.onRequest("goodEnoughScalaGetRelPath", relPath);
     client.onRequest("goodEnoughScalaMachineId", () => env.machineId);

@@ -28,7 +28,7 @@
     "vscode": "^1.23.0"
   },
   "activationEvents": [
-    "workspaceContains:**/*.{sbt,sc,scala}"
+    "workspaceContains:**/*.{routes,sbt,sc,scala,scala.html}"
   ],
   "contributes": {
     "configuration": {
@@ -46,14 +46,51 @@
           "description": "Controls whether matching symbols should show on hover"
         }
       }
-    }
+    },
+    "languages": [
+      {
+        "id": "twirl",
+        "aliases": [
+          "Twirl Template (HTML)",
+          "twirl"
+        ],
+        "extensions": [
+          ".scala.html"
+        ],
+        "configuration": "./out/syntax/twirl-config.json"
+      },
+      {
+        "id": "routes",
+        "aliases": [
+          "Play Routes",
+          "routes"
+        ],
+        "extensions": [
+          ".routes"
+        ],
+        "configuration": "./out/syntax/routes-config.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "twirl",
+        "scopeName": "text.twirl",
+        "path": "./out/syntax/twirl.tmLanguage.json"
+      },
+      {
+        "language": "routes",
+        "scopeName": "text.play.routes",
+        "path": "./out/syntax/routes.tmLanguage.json"
+      }
+    ]
   },
   "main": "./client/out/extension",
   "scripts": {
     "clean": "(git ls-files -o -z | xargs -0 rm) && yarn",
-    "compile": "yarn compile:client && yarn compile:server",
+    "compile": "yarn compile:client && yarn compile:server && yarn compile:syntax",
     "compile:client": "tsc -p client",
     "compile:server": "tsc -p server",
+    "compile:syntax": "yarn tsn build/syntax.ts",
     "deploy": "bin/deploy",
     "lint": "yarn lint:client && yarn lint:server",
     "lint:client": "tslint --project client",
@@ -63,15 +100,18 @@
     "minify:server": "find server/out -type f -name *.js -exec terser -c -m --ecma 8 -o {} {} \\;",
     "package": "yarn clean && vsce package --yarn",
     "postinstall": "cd client && yarn && cd ../server && yarn && cd ..",
+    "tsn": "ts-node --project tsconfig.base.json",
     "vscode:prepublish": "cd client && yarn update-vscode && cd .. && yarn compile && yarn minify",
-    "watch:client": "tsc -w -p client",
-    "watch:server": "tsc -w -p server"
+    "watch": "yarn tsn build/watch.ts"
   },
   "devDependencies": {
-    "@types/node": "~11.9.3",
+    "@speedy/json-extends": "~1.2.0",
+    "@types/node": "~11.9.4",
+    "chokidar": "~2.1.2",
     "terser": "~3.16.1",
+    "ts-node": "~8.0.2",
     "tslint": "~5.12.1",
     "typescript": "~3.3.3",
-    "vsce": "~1.57.0"
+    "vsce": "~1.57.1"
   }
 }
