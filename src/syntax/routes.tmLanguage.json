@@ -1,0 +1,78 @@
+{
+  "fileTypes": [
+    "routes"
+  ],
+  "name": "Play Routes",
+  "patterns": [
+    {
+      "begin": "(?<=\\A)#",
+      "end": "\\Z",
+      "name": "comment"
+    },
+    {
+      "begin": "(?<=\\A)(GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS|->)",
+      "beginCaptures": {
+        "1": {
+          "name": "constant.httpVerb"
+        }
+      },
+      "end": "\\Z",
+      "name": "definition.route",
+      "patterns": [
+        {
+          "begin": "(?=\/)",
+          "end": "\\Z",
+          "patterns": [
+            {
+              "begin": "\/",
+              "end": "\\s",
+              "name": "string",
+              "patterns": [
+                {
+                  "captures": [
+                    {
+                      "name": "variable"
+                    },
+                    {
+                      "name": "keyword"
+                    }
+                  ],
+                  "match": "(:|[*])([a-zA-Z]+)"
+                },
+                {
+                  "begin": "([$])([a-zA-Z]+)<",
+                  "beginCaptures": [
+                    {
+                      "name": "variable"
+                    },
+                    {
+                      "name": "keyword"
+                    }
+                  ],
+                  "end": ">",
+                  "patterns": [
+                    {
+                      "include": "source.regexp"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "begin": "(?<=\\s)[a-zA-Z]",
+              "end": "\\Z",
+              "name": "source.scala",
+              "patterns": [
+                {
+                  "include": "source.scala"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "scopeName": "text.play.routes",
+  "uuid": "2f98fbfb-2ea7-41e1-a3e6-e15e7388e753"
+}
