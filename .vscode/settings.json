@@ -1,4 +1,5 @@
 {
+  "editor.codeActionsOnSave": { "source.organizeImports": true },
   "files.exclude": {
     "out": false // set this to true to hide the "out" folder with the compiled JS files
   },
