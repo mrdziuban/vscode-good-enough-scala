@@ -16,10 +16,10 @@ export const ga = <M extends URIS>(M: Monad1<M>, S: Settings<M>, R: MkRef<M>, ma
 
   return {
     trackEvent: (category: string, action: string, label?: string, value?: number): Type<M, void> =>
-      whenEnabled(M.map(clientRef.read, (client: ua.Visitor) =>
+      whenEnabled(M.map(clientRef.read(), (client: ua.Visitor) =>
         (label && value ? client.event(category, action, label, value) : client.event(category, action)).send())),
 
     trackTiming: (category: string, action: string, duration: number): Type<M, void> =>
-      whenEnabled(M.map(clientRef.read, (client: ua.Visitor) => client.timing(category, action, duration).send()))
+      whenEnabled(M.map(clientRef.read(), (client: ua.Visitor) => client.timing(category, action, duration).send()))
   };
 };

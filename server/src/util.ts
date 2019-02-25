@@ -12,10 +12,16 @@ export const autobind = <A extends object>(a: A): A => new Proxy(a, {
     applyTo((res: A[K]) => typeof res === "function" ? res.bind(receiver) : res)(target[key])
   });
 
-export const concat = (a: string, b: string) => a + b;
+export function concat(a: string): (b: string) => string;
+export function concat(a: string, b: string): string;
+export function concat(a: string, b?: string): ((b: string) => string) | string {
+  return typeof b === "string"
+    ? a + b
+    : (b2: string) => a + b2;
+}
 
-export const dec = (i: number) => i + 1;
-  export const inc = (i: number) => i + 1;
+export const dec = (i: number) => i - 1;
+export const inc = (i: number) => i + 1;
 
 // tslint:disable-next-line variable-name
 export const Do = <F extends URIS>(F: Monad1<F>) => <A>(generator: () => Iterator<any>): Type<F, A> => {

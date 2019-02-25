@@ -9,7 +9,7 @@ export interface SettingsT {
   hoverEnabled: boolean;
 }
 
-const defaultSettingsT: SettingsT = {
+export const defaultSettingsT: SettingsT = {
   analyticsEnabled: true,
   hoverEnabled: true
 };
@@ -25,11 +25,11 @@ export const defaultSettings = <M extends URIS>(M: Monad1<M>, R: MkRef<M>) => (g
   const settingsRef = autobind(R(defaultSettingsT));
   const hasWorkspaceConfigRef = autobind(R(false));
   return {
-    get: <K extends keyof SettingsT>(key: K): Type<M, SettingsT[K]> => M.map(settingsRef.read, prop(key)),
-    hasWorkspaceConfig: hasWorkspaceConfigRef.read,
+    get: <K extends keyof SettingsT>(key: K): Type<M, SettingsT[K]> => M.map(settingsRef.read(), prop(key)),
+    hasWorkspaceConfig: hasWorkspaceConfigRef.read(),
     updateHasWorkspaceConfig: hasWorkspaceConfigRef.write,
     update: (params?: DidChangeConfigurationParams) => Do(M)<void>(function*() {
-      const hasWorkspaceConfig = yield hasWorkspaceConfigRef.read;
+      const hasWorkspaceConfig = yield hasWorkspaceConfigRef.read();
       const settings: SettingsT = yield hasWorkspaceConfig ? getWorkspaceSettings() : M.of(params && params.settings ? params.settings : defaultSettingsT);
       yield settingsRef.write(settings);
     })

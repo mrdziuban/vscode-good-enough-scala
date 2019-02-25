@@ -26,7 +26,7 @@ export const defaultFileCache = <M extends URIS>(M: Monad1<M>, R: MkRef<M>) => (
   const justChanged: { [uri: string]: boolean } = {};
 
   const getFromCache = <K extends keyof File>(key: K) => (uri: string): Type<M, File[K]> =>
-    M.chain(cacheRef.read, (cache: FileCache) => fromNullable(cache[uri]).foldL(
+    M.chain(cacheRef.read(), (cache: FileCache) => fromNullable(cache[uri]).foldL(
       () => M.map(getFiles(some([uri])), path(uri, key)),
       pipe(prop(key), M.of)));
 
