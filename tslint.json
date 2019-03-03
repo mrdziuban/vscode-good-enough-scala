@@ -1,5 +1,5 @@
 {
-  "defaultSeverity": "warning",
+  "defaultSeverity": "error",
   "extends": [
     "tslint:recommended"
   ],
@@ -50,7 +50,6 @@
     ],
     "typedef": [
       true,
-      "call-signature",
       "parameter",
       "arrow-parameter",
       "property-declaration"

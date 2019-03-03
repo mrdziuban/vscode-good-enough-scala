@@ -1,26 +1,23 @@
-import { CodeAction, CodeActionKind, CodeActionParams, createConnection, DidChangeConfigurationNotification, DidChangeTextDocumentParams, DidChangeWatchedFilesParams, FileChangeType, FileEvent, Hover, InitializeParams, Location, MarkupKind, ProposedFeatures, SymbolInformation, TextDocumentContentChangeEvent, TextDocumentPositionParams, TextDocuments, TextDocumentSyncKind, WorkspaceSymbolParams } from "vscode-languageserver";
-import { Analytics } from "./analytics";
-import { CodeActions } from "./codeActions";
-import { CodeActionDeps } from "./codeActions/util";
-import { FileIndex as FileIndexStatic } from "./fileIndex";
-import { FileCache, Files as FilesStatic } from "./files";
-import Settings from "./settings";
-import { ScalaSymbol, Symbols as SymbolsStatic } from "./symbols";
-import { applyTo, exhaustive, path, pipe, setPath, toNel } from "./util";
-import R = require("rambda");
+import { array } from "fp-ts/lib/Array";
+import { identity } from "fp-ts/lib/function";
+import { fromArray } from "fp-ts/lib/NonEmptyArray";
+import { none, some } from "fp-ts/lib/Option";
+import { CodeAction, CodeActionKind, CodeActionParams, createConnection, DidChangeConfigurationNotification, DidChangeConfigurationParams, DidChangeTextDocumentParams, DidChangeWatchedFilesParams, FileChangeType, FileEvent, Hover, InitializeParams, Location, MarkupKind, ProposedFeatures, SymbolInformation, TextDocumentContentChangeEvent, TextDocumentPositionParams, TextDocuments, TextDocumentSyncKind, WorkspaceSymbolParams } from "vscode-languageserver";
+import { Algebras } from "./algebras";
+import { filterCodeActions } from "./algebras/codeActions";
+import { FileCache } from "./algebras/files";
+import { ScalaSymbol, symToLoc, symToUri } from "./algebras/symbols";
+import { fromPromiseL, getAlgebras, M, MHK, RTS } from "./effect";
+import { applyTo, Do, exhaustive } from "./util";
 
 const connection = createConnection(ProposedFeatures.all);
 const documents = new TextDocuments();
 documents.listen(connection);
 
-// tslint:disable variable-name
-const Files = FilesStatic.init(connection);
-const Symbols = SymbolsStatic.init(Files);
-const FileIndex = FileIndexStatic.init(connection, Files, Symbols);
-// tslint:enable variable-name
+let hasWorkspaceConfig = false;
 
 connection.onInitialize((params: InitializeParams) => {
-  Settings.updateHasWorkspaceConfig(!!params.capabilities.workspace && !!params.capabilities.workspace.configuration);
+  hasWorkspaceConfig = !!params.capabilities.workspace && !!params.capabilities.workspace.configuration;
   return {
     capabilities: {
       codeActionProvider: { codeActionKinds: [CodeActionKind.SourceOrganizeImports] },
@@ -32,72 +29,88 @@ connection.onInitialize((params: InitializeParams) => {
   };
 });
 
-connection.onDidChangeConfiguration(Settings.update(connection));
+connection.onInitialized(() => {
+  const server = () => Do(M)(function*() {
+    const algebras: Algebras<MHK> = yield getAlgebras(connection);
+    const { codeActions, files, settings, store, symbols } = algebras;
 
-connection.onInitialized((() => {
-  if (Settings.hasWorkspaceConfig()) { connection.client.register(DidChangeConfigurationNotification.type); }
-  Settings.update(connection)();
-  connection.sendRequest<string>("goodEnoughScalaMachineId").then(Analytics.init);
-  FileIndex.indexAll();
-}));
+    yield settings.updateHasWorkspaceConfig(hasWorkspaceConfig);
 
-connection.onDefinition((tdp: TextDocumentPositionParams): PromiseLike<Location[]> =>
-  Analytics.timedAsync("lookup", "definition")(() => Symbols.symbolsForPos(tdp).then((syms: ScalaSymbol[]) =>
-    // The character position for a definition lookup needs to be decremented by 1 for some reason
-    syms.map(pipe(SymbolsStatic.symToLoc, (l: Location) => setPath("range", "start", "character")(path("range", "start", "character")(l) - 1)(l))))));
+    yield hasWorkspaceConfig ? fromPromiseL(() => connection.client.register(DidChangeConfigurationNotification.type)) : M.of(undefined);
+    yield settings.update();
+    yield store.indexAllFiles();
 
-connection.onHover((tdp: TextDocumentPositionParams): PromiseLike<Hover> | undefined =>
-  R.ifElse(
-    R.identity,
-    () => Analytics.timedAsync("lookup", "hover")(() => Symbols.symbolsForPos(tdp).then((syms: ScalaSymbol[]) => ({
-      contents: {
-        kind: MarkupKind.Markdown,
-        value: syms
-          .map((sym: ScalaSymbol) => applyTo((line: string) => `[${sym.file.relativePath}:${line}](${SymbolsStatic.symToUri(sym)}#L${line})  `)(
-            `${sym.location.line + 1},${sym.location.character}`))
-          .join("\n")
-      }
-    }))),
-    () => undefined)(Settings.get().hoverEnabled));
+    connection.onDidChangeConfiguration((params: DidChangeConfigurationParams) =>
+      RTS.run(algebras)("action", "changedConfig")(() => settings.update(params)));
 
-connection.onWorkspaceSymbol((params: WorkspaceSymbolParams): SymbolInformation[] =>
-  Analytics.timed("lookup", "workspaceSymbol")(() => Symbols.search(params.query).map((sym: ScalaSymbol) => ({
-    name: sym.rawName,
-    kind: sym.kind,
-    location: SymbolsStatic.symToLoc(sym)
-  }))));
+    connection.onDefinition((tdp: TextDocumentPositionParams): PromiseLike<Location[]> =>
+      RTS.run(algebras)("lookup", "definition")(() => symbols.symbolsForPos(files)(tdp).map((syms: ScalaSymbol[]) => syms.map(symToLoc))));
 
-connection.onDidChangeTextDocument((params: DidChangeTextDocumentParams) => {
-  Files.addJustChanged(params.textDocument.uri);
-  params.contentChanges.reduce(
-    (acc: PromiseLike<FileCache>, event: TextDocumentContentChangeEvent) =>
-      acc.then((fs: FileCache) => Files.getRelPath(params.textDocument.uri).then((relativePath: string) =>
-        Object.assign({}, fs, { [params.textDocument.uri]: { uri: params.textDocument.uri, relativePath, contents: event.text } }))),
-    Promise.resolve({})).then(FileIndex.debounced("indexChanged"));
-});
+    connection.onHover((tdp: TextDocumentPositionParams): PromiseLike<Hover | undefined> => RTS.run(algebras)("lookup", "hover")(() => Do(M)(function*() {
+      const hoverEnabled: boolean = yield settings.get("hoverEnabled");
+      return yield some(hoverEnabled).filter(identity).fold<M<Hover | undefined>>(M.of(undefined), () => symbols.symbolsForPos(files)(tdp).map((syms: ScalaSymbol[]) => ({
+        contents: {
+          kind: MarkupKind.Markdown,
+          value: syms.map((sym: ScalaSymbol) => applyTo((line: string) =>
+            `[${sym.file.relativePath}:${line}](${symToUri(sym)}#L${line})  `)(`${sym.location.line + 1},${sym.location.character + 1}`)).join("\n")
+        }
+      })));
+    })));
 
-connection.onDidChangeWatchedFiles((params: DidChangeWatchedFilesParams) => {
-  const [toIndex, toDelete] = params.changes.reduce(([i, d]: [string[], string[]], event: FileEvent): [string[], string[]] => {
-    switch (event.type) {
-      case FileChangeType.Changed: return Files.isJustChanged(event.uri) ? [i, d] : [i.concat([event.uri]), d];
-      case FileChangeType.Created: return [i.concat([event.uri]), d];
-      case FileChangeType.Deleted: return [i, d.concat([event.uri])];
-    }
-    return exhaustive(event.type);
-  }, [[], []]);
+    connection.onWorkspaceSymbol((params: WorkspaceSymbolParams): PromiseLike<SymbolInformation[]> =>
+      RTS.run(algebras)("lookup", "workspaceSymbol")(() =>
+        symbols.search(params.query).map((syms: ScalaSymbol[]) => syms.map((sym: ScalaSymbol) => ({
+          name: sym.rawName,
+          kind: sym.kind,
+          location: symToLoc(sym)
+        })))));
 
-  if (toIndex.length === 0 && toDelete.length === 0) { return; }
+    let debouncedFiles: FileCache = {};
+    let debounceTick: NodeJS.Timer | undefined;
 
-  const delFiles = toDelete.reduce((acc: { [uri: string]: "" }, u: string) => Object.assign({}, acc, { [u]: "" }), {});
-  if (toIndex.length === 0) { FileIndex.debounced("indexChangedWatched")(delFiles); }
-  Files.getFiles(toIndex).then((files: FileCache) => FileIndex.debounced("indexChangedWatched")(Object.assign({}, files, delFiles)));
-});
+    const debouncedIndex = (action: string) => (toIndex: FileCache): void => {
+      if (debounceTick) { clearTimeout(debounceTick); }
+      debouncedFiles = Object.assign({}, debouncedFiles, toIndex);
+      debounceTick = setTimeout(() => RTS.run(algebras)("action", action)(() =>
+        store.indexFiles(debouncedFiles).map(() => { debouncedFiles = {}; })), 150);
+    };
 
-connection.onCodeAction((params: CodeActionParams) => {
-  const deps = { files: Files, symbols: Symbols };
-  const nel = params.context.only ? toNel(params.context.only) : undefined;
-  return Promise.all((nel ? CodeActions.filtered(nel) : CodeActions.all)
-    .map(([_, f]: [any, (params: CodeActionParams, deps: CodeActionDeps) => PromiseLike<CodeAction>]) => f(params, deps)));
+    connection.onDidChangeTextDocument((params: DidChangeTextDocumentParams) => RTS.run(algebras)("action", "changedTextDocument")(() => Do(M)(function*() {
+      yield files.addJustChanged(params.textDocument.uri);
+      const toIndex: FileCache = yield params.contentChanges.reduce(
+        (acc: M<FileCache>, event: TextDocumentContentChangeEvent) =>
+          acc.chain((fc: FileCache) => files.getRelPath(params.textDocument.uri).map((relativePath: string) =>
+            Object.assign({}, fc, { [params.textDocument.uri]: { uri: params.textDocument.uri, relativePath, contents: event.text } }))),
+          M.of({}));
+      debouncedIndex("indexChanged")(toIndex);
+    })));
+
+    connection.onDidChangeWatchedFiles((params: DidChangeWatchedFilesParams) => RTS.run(algebras)("action", "changedWatchedFiles")(() => Do(M)(function*() {
+      const [toIndex, toDelete] = yield params.changes.reduce((acc: M<[string[], string[]]>, event: FileEvent) =>
+        acc.chain(([i, d]: [string[], string[]]) => {
+          switch (event.type) {
+            case FileChangeType.Changed: return files.isJustChanged(event.uri).map((jc: boolean): [string[], string[]] => jc ? [i, d] : [i.concat([event.uri]), d]);
+            case FileChangeType.Created: return M.of<[string[], string[]]>([i.concat([event.uri]), d]);
+            case FileChangeType.Deleted: return M.of<[string[], string[]]>([i, d.concat([event.uri])]);
+          }
+        return exhaustive(event.type);
+      }), M.of<[string[], string[]]>([[], []]));
+
+      if (toIndex.length === 0 && toDelete.length === 0) { return; }
+      const delFiles = toDelete.reduce((acc: { [uri: string]: "" }, u: string) => Object.assign({}, acc, { [u]: "" }), {});
+      debouncedIndex("indexChangedWatched")(toIndex.length === 0
+        ? delFiles
+        : files.getFiles(some(toIndex)).map((fc: FileCache) => Object.assign({}, fc, delFiles)));
+    })));
+
+    connection.onCodeAction((params: CodeActionParams): PromiseLike<CodeAction[]> => RTS.run(algebras)("action", "codeAction")(() => Do(M)(function*() {
+      const nel = params.context.only ? fromArray(params.context.only) : none;
+      const fs = yield nel.foldL(() => codeActions.all, filterCodeActions(M, codeActions));
+      return yield array.traverse(M)(fs, ([_, f]: [any, (p: CodeActionParams) => M<CodeAction>]) => f(params));
+    })));
+  });
+
+  RTS.runUntimed(server());
 });
 
 connection.listen();
