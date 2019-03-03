@@ -85,7 +85,7 @@ connection.onInitialized(() => {
       debouncedIndex("indexChanged")(toIndex);
     })));
 
-    connection.onDidChangeWatchedFiles((params: DidChangeWatchedFilesParams) => RTS.run(algebras)("action", "changedWatchedFiles")(() => Do(M)(function* () {
+    connection.onDidChangeWatchedFiles((params: DidChangeWatchedFilesParams) => RTS.run(algebras)("action", "changedWatchedFiles")(() => Do(M)(function*() {
       const [toIndex, toDelete] = yield params.changes.reduce((acc: M<[string[], string[]]>, event: FileEvent) =>
         acc.chain(([i, d]: [string[], string[]]) => {
           switch (event.type) {
@@ -103,7 +103,7 @@ connection.onInitialized(() => {
         : files.getFiles(some(toIndex)).map((fc: FileCache) => Object.assign({}, fc, delFiles)));
     })));
 
-    connection.onCodeAction((params: CodeActionParams): PromiseLike<CodeAction[]> => RTS.run(algebras)("action", "codeAction")(() => Do(M)(function* () {
+    connection.onCodeAction((params: CodeActionParams): PromiseLike<CodeAction[]> => RTS.run(algebras)("action", "codeAction")(() => Do(M)(function*() {
       const nel = params.context.only ? fromArray(params.context.only) : none;
       const fs = yield nel.foldL(() => codeActions.all, filterCodeActions(M, codeActions));
       return yield array.traverse(M)(fs, ([_, f]: [any, (p: CodeActionParams) => M<CodeAction>]) => f(params));

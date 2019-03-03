@@ -36,9 +36,8 @@ export const exhaustive = (a: never): never => a;
 export const flip = <A, B, C>(f: (a: A, b: B) => C) => (b: B, a: A): C => f(a, b);
 
 export const groupByArr = <A>(f: (a: A) => string) => (as: A[]): { [k: string]: A[] } => {
-  const result: { [k: string]: A[] } = {}
-  for (let i = 0; i < as.length; i++) {
-    const a = as[i];
+  const result: { [k: string]: A[] } = {};
+  for (const a of as) {
     const k = f(a);
     if (!result[k]) { result[k] = []; }
     result[k].push(a);

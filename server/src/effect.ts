@@ -31,7 +31,7 @@ export const fromLazy: <A>(f: Lazy<A>) => M<A> = Task.fromLazy;
 export const fromPromiseL: <A>(f: Lazy<PromiseLike<A>>) => M<A> = Task.fromPromiseL;
 export const mkRef: MkRef<MHK> = lazyRef(fromLazy);
 
-type RunMDeps = [Algebras<MHK>, string, string]
+type RunMDeps = [Algebras<MHK>, string, string];
 
 const runM = (ao: Option<RunMDeps>) => <A>(f: () => M<A>): PromiseLike<A> =>
   f().run().catch((e: any) => Do(M)<A>(function*() {
