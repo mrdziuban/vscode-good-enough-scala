@@ -77,10 +77,10 @@ export const regexSymbols = <M extends URIS>(M: Monad1<M>, R: MkRef<M>): Symbols
   const fuzzySearchRef = autobind(R(mkFuzzySearch([])));
 
   return {
-    search: (query: string) => M.map(fuzzySearchRef.read(), (f: FuzzySearch<ScalaSymbol>) => f.search(query.toLowerCase())),
+    search: (query: string) => M.map(fuzzySearchRef.read, (f: FuzzySearch<ScalaSymbol>) => f.search(query.toLowerCase())),
 
     update: (filesToIndex: File[]): Type<M, ScalaSymbol[]> => Do(M)(function*() {
-      const oldCache: SymbolCache = yield cacheRef.read();
+      const oldCache: SymbolCache = yield cacheRef.read;
       const filesToRemove = filesToIndex.map(prop("uri"));
       const shouldRemove: { [f: string]: true } = Object.assign({}, ...Array.from(filesToRemove, (f: string) => ({ [f]: true })));
       const keptSyms = applyTo((xs: ScalaSymbol[]) => filesToRemove.length === 0 ? xs :
@@ -96,7 +96,7 @@ export const regexSymbols = <M extends URIS>(M: Monad1<M>, R: MkRef<M>): Symbols
 
     symbolsForPos: (files: Files<M>) => (tdp: TextDocumentPositionParams): Type<M, ScalaSymbol[]> => Do(M)(function*() {
       const term: Term = yield getTerm(files)(tdp);
-      const syms: ScalaSymbol[] = yield M.map(cacheRef.read(), (cache: SymbolCache) => cache[term.term] || []);
+      const syms: ScalaSymbol[] = yield M.map(cacheRef.read, (cache: SymbolCache) => cache[term.term] || []);
       return reject((sym: ScalaSymbol) =>
         sym.file.uri === tdp.textDocument.uri && sym.location.line === tdp.position.line &&
         sym.location.character >= term.range.start && sym.location.character <= term.range.end)(syms);

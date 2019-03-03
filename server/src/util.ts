@@ -35,11 +35,16 @@ export const exhaustive = (a: never): never => a;
 
 export const flip = <A, B, C>(f: (a: A, b: B) => C) => (b: B, a: A): C => f(a, b);
 
-export const groupByArr = <A>(f: (a: A) => string) => (as: A[]): { [k: string]: A[] } =>
-  as.reduce((acc: { [k: string]: A[] }, a: A) => {
+export const groupByArr = <A>(f: (a: A) => string) => (as: A[]): { [k: string]: A[] } => {
+  const result: { [k: string]: A[] } = {}
+  for (let i = 0; i < as.length; i++) {
+    const a = as[i];
     const k = f(a);
-    return Object.assign({}, acc, { [k]: (acc[k] || []).concat([a]) });
-  }, {});
+    if (!result[k]) { result[k] = []; }
+    result[k].push(a);
+  }
+  return result;
+};
 
 export const now = () => (new Date()).getTime();
 

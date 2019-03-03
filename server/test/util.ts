@@ -1,37 +1,38 @@
 import * as fc from "fast-check";
 import { Lazy } from "fp-ts/lib/function";
-import { identity, Identity } from "fp-ts/lib/Identity";
+import { io, IO } from "fp-ts/lib/IO";
+import { IORef } from "fp-ts/lib/IORef";
 import { Algebras } from "../src/algebras";
 import { Analytics } from "../src/algebras/analytics";
 import { CodeActions } from "../src/algebras/codeActions";
 import { defaultFileCache, FileCache, Files } from "../src/algebras/files";
 import { defaultLog, Log } from "../src/algebras/log";
-import { lazyRef, MkRef } from "../src/algebras/ref";
+import { MkRef } from "../src/algebras/ref";
 import { defaultSettings, defaultSettingsT, Settings } from "../src/algebras/settings";
 import { defaultStore, Store } from "../src/algebras/store";
 import { Symbols } from "../src/algebras/symbols";
 import { regexSymbols } from "../src/algebras/symbols/regex";
 
-type Id = typeof identity.URI;
-
 export const arbSpaces = fc.stringOf(fc.constant(' '), 2, 20);
 
-export const idFromLazy = <A>(f: Lazy<A>) => new Identity(f());
-export const idRef: MkRef<Id> = lazyRef(idFromLazy);
+type IOU = typeof io.URI;
+
+export const ioFromLazy = <A>(f: Lazy<A>) => new IO(f);
+export const ioRef: MkRef<IOU> = <A>(a: A) => new IORef(a);
 
 export const noop = () => {}; // tslint:disable-line empty-block
 
-export const algebras = (sources: FileCache, shouldLog: boolean = false): Algebras<Id> => {
-  const analytics: Analytics<Id> = {
-    trackEvent: (_c: string, _a: string, _l?: string, _v?: number) => identity.of(undefined),
-    trackTiming: (_c: string, _a: string, _d: number) => identity.of(undefined)
+export const algebras = (sources: FileCache, shouldLog: boolean = false): Algebras<IOU> => {
+  const analytics: Analytics<IOU> = {
+    trackEvent: (_c: string, _a: string, _l?: string, _v?: number) => io.of(undefined),
+    trackTiming: (_c: string, _a: string, _d: number) => io.of(undefined)
   };
-  const codeActions: CodeActions<Id> = { all: identity.of([]) };
-  const files: Files<Id> = defaultFileCache(identity, idRef)(() => identity.of(sources));
-  const log: Log<Id> = shouldLog ? defaultLog(console, idFromLazy) : defaultLog({ info: noop, warn: noop, error: noop }, idFromLazy);
-  const settings: Settings<Id> = defaultSettings(identity, idRef)(() => identity.of(defaultSettingsT));
-  const symbols: Symbols<Id> = regexSymbols(identity, idRef);
-  const store: Store<Id> = defaultStore(identity, analytics, files, log, symbols);
+  const codeActions: CodeActions<IOU> = { all: io.of([]) };
+  const files: Files<IOU> = defaultFileCache(io, ioRef)(() => io.of(sources));
+  const log: Log<IOU> = shouldLog ? defaultLog(console, ioFromLazy) : defaultLog({ info: noop, warn: noop, error: noop }, ioFromLazy);
+  const settings: Settings<IOU> = defaultSettings(io, ioRef)(() => io.of(defaultSettingsT));
+  const symbols: Symbols<IOU> = regexSymbols(io, ioRef);
+  const store: Store<IOU> = defaultStore(io, analytics, files, log, symbols);
 
   return { analytics, codeActions, files, log, settings, store, symbols };
 }
